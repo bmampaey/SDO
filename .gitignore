@@ -2,6 +2,12 @@
 __pycache__/
 *.py[cod]
 
+# gedit backup files
+*~
+# data files 
+*.fits
+*.csv
+
 # C extensions
 *.so
 

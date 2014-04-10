@@ -1,0 +1,9 @@
+{% if data_series %}
+    <ul>
+    {% for data_serie in data_series %}
+        <li><a href="{% url 'DRMS:data_serie' data_serie.table %}">{{ data_serie.table }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No data serie is available.</p>
+{% endif %}
