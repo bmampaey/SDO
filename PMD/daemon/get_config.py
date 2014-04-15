@@ -10,6 +10,10 @@ from django.conf import settings
 sys.path.append('/home/benjmam/SDO')
 import PMD.models
 
+def get_data_sites():
+	'''Return the list of data sites'''
+	return PMD.models.DataSite.objects.all()
+
 def get_config():
 	'''Read the PMD config from database'''
 	
@@ -24,7 +28,7 @@ def get_config():
 	data_sites = dict()
 	proactive_data_sites = list()
 	local_data_site = None
-	for data_site in PMD.models.DataSites.objects.all():
+	for data_site in PMD.models.DataSite.objects.all():
 		data_sites[data_site.name] = data_site
 		if data_site.local:
 			if local_data_site is None:
