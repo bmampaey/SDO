@@ -61,70 +61,7 @@ class DRMSDataSeries(models.Model):
 			self.__set_models()
 		return self.__fits_keyword_model
 
-class AiaLev1(models.Model):
-	recnum = models.BigIntegerField(primary_key=True)
-	sunum = models.BigIntegerField(blank=True, null=True)
-	slotnum = models.IntegerField(blank=True, null=True)
-	segment = models.TextField(db_column='sg_000_file', blank=True)
-	t_rec_index = models.BigIntegerField(blank=True, null=False)
-	fsn = models.IntegerField(blank=True, null=False)
-	date_obs = models.FloatField(db_column='date__obs', blank=True, null=True)
-	wavelnth = models.IntegerField(blank=True, null=True)
-	quality = models.IntegerField(blank=True, null=True)
-	
-	class Meta:
-		managed = False
-		db_table = 'lev1'
-		fully_qualified_db_table = 'aia.lev1'
-		unique_together = (("t_rec_index", "fsn"),)
-	
-	@property
-	def path(self):
-		return "D%s/S%06d/%s" % (self.sunum, self.slotnum, self.segment)
-
-class HmiM45S(models.Model):
-	recnum = models.BigIntegerField(primary_key=True)
-	sunum = models.BigIntegerField(blank=True, null=True)
-	slotnum = models.IntegerField(blank=True, null=True)
-	segment = models.TextField(db_column='sg_000_file', blank=True)
-	t_rec_index = models.BigIntegerField(blank=True, null=True)
-	camera = models.IntegerField(blank=True, null=True)
-	date_obs = models.FloatField(db_column='date__obs', blank=True, null=True)
-	wavelnth = models.IntegerField(blank=True, null=True)
-	quality = models.IntegerField(blank=True, null=True)
-	
-	class Meta:
-		managed = False
-		db_table = 'm_45s'
-		fully_qualified_db_table = 'hmi.m_45s'
-		unique_together = (("t_rec_index", "camera"),)
-	
-	@property
-	def path(self):
-		return "D%s/S%06d/%s" % (self.sunum, self.slotnum, self.segment)
-
-class HmiIc45S(models.Model):
-	recnum = models.BigIntegerField(primary_key=True)
-	sunum = models.BigIntegerField(blank=True, null=True)
-	slotnum = models.IntegerField(blank=True, null=True)
-	segment = models.TextField(db_column='sg_000_file', blank=True)
-	t_rec_index = models.BigIntegerField(blank=True, null=True)
-	camera = models.IntegerField(blank=True, null=True)
-	date_obs = models.FloatField(db_column='date__obs', blank=True, null=True)
-	wavelnth = models.IntegerField(blank=True, null=True)
-	quality = models.IntegerField(blank=True, null=True)
-	
-	class Meta:
-		managed = False
-		db_table = 'ic_45s'
-		fully_qualified_db_table = 'hmi.ic_45s'
-		unique_together = (("t_rec_index", "camera"),)
-	
-	@property
-	def path(self):
-		return "D%s/S%06d/%s" % (self.sunum, self.slotnum, self.segment)
-
- # Field names are lowercase.
+# Field names are lowercase.
 class AiaLev1FitsHeader(models.Model):
 	bld_vers = models.TextField(db_column='BLD_VERS', blank=True)
 	lvl_num = models.FloatField(db_column='LVL_NUM', blank=True, null=True)
