@@ -2,7 +2,6 @@ from django.db import models
 from datetime import datetime, timedelta
 from DRMS.models import DRMSDataSeries
 
-# Create your models here.
 class DataSite(models.Model):
 	name = models.CharField("Data site name.", max_length=12, primary_key = True)
 	protocol = models.CharField(help_text = "Protocol to download data. I.e. scp, sftp, http, ...", max_length=12, default = "sftp")
@@ -44,11 +43,12 @@ class DataSite(models.Model):
 		return self.__data_location_model
 
 class DataSeries(models.Model):
-	data_series = models.ForeignKey(DRMSDataSeries, help_text="DRMS data series.", on_delete=models.DO_NOTHING, related_name='+', db_column = "name", primary_key=True)
+	data_series = models.OneToOneField(DRMSDataSeries, help_text="DRMS data series.", on_delete=models.DO_NOTHING, related_name='+', db_column = "name", primary_key=True)
 	retention = models.PositiveIntegerField(help_text = "Default minimum number of days before deleting the data.", default=60, blank=True)
 	prefered_datasite = models.ForeignKey(DataSite, help_text="Prefered data site name to download the data from. Will override the data site priority if set.", default=None, blank=True, null=True, on_delete=models.SET_NULL, db_column = "prefered_datasite")
 	last_treated_recnum = models.IntegerField(help_text = "Last record number treated.", default=0, blank=True, null=True)
-
+	db_table = models.CharField(help_text = "PMD table name for the data series.", max_length=20, blank=False, null=False)
+	
 	class Meta:
 		db_table = "data_series"
 		verbose_name = "Data series"
@@ -59,6 +59,106 @@ class DataSeries(models.Model):
 	
 	def default_retention_date(self, date = datetime.utcnow()):
 		return date + timedelta(days = self.retention)
+	
+	def __set_models(self):
+		import PMD.models as PMD_models
+		for model_name in dir(PMD_models):
+			try:
+				PMD_model = getattr(PMD_models, model_name)
+				if PMD_model._meta.db_table == self.db_table:
+					self.__model = PMD_model
+			except Exception:
+				pass
+	
+	@property
+	def model(self):
+		if not hasattr(self, '__model'):
+			self.__set_models()
+		return self.__model
+
+######################
+# Data Series models #
+######################
+
+class AiaLev1(models.Model):
+	recnum = models.BigIntegerField(primary_key=True)
+	sunum = models.BigIntegerField(blank=True, null=True)
+	slotnum = models.IntegerField(blank=True, null=True)
+	segment = models.TextField(blank=True)
+	date_obs = models.DateTimeField(blank=True, null=True)
+	wavelnth = models.FloatField(blank=True, null=True)
+	quality = models.IntegerField(blank=True, null=True)
+	t_rec_index = models.BigIntegerField(blank=True, null=True)
+	fsn = models.IntegerField(blank=True, null=True)
+	
+	class Meta:
+		managed = False
+		db_table = 'aia_lev1'
+		unique_together = (("t_rec_index", "fsn"),)
+		verbose_name = "AIA Lev1"
+	
+	def __unicode__(self):
+		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
+	
+	@property
+	def path(self):
+		return "D%s/S%06d/%s" % (self.sunum, self.slotnum, self.segment)
+
+
+class HmiIc45S(models.Model):
+	recnum = models.BigIntegerField(primary_key=True)
+	sunum = models.BigIntegerField(blank=True, null=True)
+	slotnum = models.IntegerField(blank=True, null=True)
+	segment = models.TextField(blank=True)
+	date_obs = models.DateTimeField(blank=True, null=True)
+	wavelnth = models.FloatField(blank=True, null=True)
+	quality = models.IntegerField(blank=True, null=True)
+	t_rec_index = models.BigIntegerField(blank=True, null=True)
+	camera = models.IntegerField(blank=True, null=True)
+	
+	class Meta:
+		managed = False
+		db_table = 'hmi_ic_45s'
+		unique_together = (("t_rec_index", "camera"),)
+		verbose_name = "HMI M45s"
+	
+	def __unicode__(self):
+		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
+	
+	@property
+	def path(self):
+		return "D%s/S%06d/%s" % (self.sunum, self.slotnum, self.segment)
+
+class HmiM45S(models.Model):
+	recnum = models.BigIntegerField(primary_key=True)
+	sunum = models.BigIntegerField(blank=True, null=True)
+	slotnum = models.IntegerField(blank=True, null=True)
+	segment = models.TextField(blank=True)
+	date_obs = models.DateTimeField(blank=True, null=True)
+	wavelnth = models.FloatField(blank=True, null=True)
+	quality = models.IntegerField(blank=True, null=True)
+	t_rec_index = models.BigIntegerField(blank=True, null=True)
+	camera = models.IntegerField(blank=True, null=True)
+	
+	class Meta:
+		managed = False
+		db_table = 'hmi_m_45s'
+		unique_together = (("t_rec_index", "camera"),)
+		verbose_name = "HMI M45s"
+	
+	def __unicode__(self):
+		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
+	
+	@property
+	def path(self):
+		return "D%s/S%06d/%s" % (self.sunum, self.slotnum, self.segment)
+
+
+
+####################
+# Data Site models #
+####################
+
 
 class DrmsDataLocation(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.PROTECT, db_column = "data_series_name")
@@ -111,3 +211,5 @@ class SAODataLocation(DrmsDataLocation):
 	class Meta(DrmsDataLocation.Meta):
 		db_table = "sao_data_location"
 		verbose_name = "SAO data location"
+
+

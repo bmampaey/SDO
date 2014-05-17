@@ -1,0 +1,90 @@
+{% load staticfiles %}
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>SDO online</title>
+		<!-- Include broken browsers fixes -->
+		<script src="{% static "PMD/js/iso8601.js" %}" type="text/javascript"></script>
+		<script src="{% static "PMD/js/fix_ie.js" %}" type="text/javascript"></script>
+		<!-- Include jquery libraries and plugins -->
+		<script src="{% static "PMD/js/jquery-1.10.2.js" %}" type="text/javascript"></script>
+		<script src="{% static "PMD/js/jquery-ui-1.10.4.min.js" %}" type="text/javascript"></script>
+		<script src="{% static "PMD/js/jquery-ui-timepicker-addon.js" %}" type="text/javascript"></script>
+		<script src="{% static "PMD/js/jquery.cookie.js" %}" type="text/javascript"></script>
+		<script src="{% static "PMD/js/json.js" %}" type="text/javascript"></script>
+		<script src="{% static "PMD/js/dateformat.js" %}" type="text/javascript"></script>
+
+		<!-- Include application javascripts -->
+		<script src="{% static "PMD/js/sdo_wizard.js" %}" type="text/javascript"></script>
+		
+		<!-- Include stylesheets -->
+		<link rel="stylesheet" href="{% static "PMD/css/reset.css" %}" type="text/css">
+		<link rel="stylesheet" href="{% static "PMD/css/jquery-ui-1.8.16.custom.css" %}" type="text/css">
+		<link rel="stylesheet" href="{% static "PMD/css/sdo_wizard.css" %}" type="text/css">
+	</head>
+<body>
+
+<!-- Username and logout link --> 
+<div id="user_id">	
+<p>You are logged in as {{ user.username }} <a href="{% url 'accounts:django.contrib.auth.views.logout' %}?next=/PMD/">Logout</a></p>
+</div>
+
+<!-- Form for time range 
+     It is outside of the tabs, but will be moved inside the current tab by jquery, so dates remain
+-->
+<div class="form_section" id="time_range">
+	<p class="form_section_title">
+		Select time range
+	</p>
+	{{ time_range_form.as_p }}
+</div>
+
+<div id="tabs">
+	<!-- Tabs declaration -->
+	<ul>
+		{% for form in data_series_forms %}
+			<li><a href="#tab_{{ form.data_series.value }}">{{ form.data_series.value }}</a></li>
+		{% endfor %}
+	</ul>
+	<!-- Tabs definition -->
+	{% for form in data_series_forms %}
+	<!-- {{ form.data_series.value }} tab content-->
+		<div id="tab_{{ form.data_series.value }}" class="tab_content">
+			<form action="/PMD/search_data" method="get">
+				<div class="form_section specific_criteria">
+					<p class="form_section_title">
+						Select search criteria
+					</p>
+					{% csrf_token %}
+					{{ form.as_p }}
+				</div>
+				<input type="submit" value="Submit" />
+			</form>
+		</div>
+	{% endfor %}
+</div>
+
+<!-- Tables of search results -->
+<div class="search_results" style="display:none;">
+	<!-- At the beginning the table is empty -->
+	<table class="search_results_table fixedheader" summary="Search results">
+		<thead><tr></tr></thead>
+		<tbody></tbody>
+	</table>
+	<div>
+		<button class="select_all select_operation" title="Click to select all results" onclick="select_all('select')" >Select all</button>
+		<button class="unselect_all select_operation" title="Click to unselect all results" onclick="select_all('unselect')" >Unselect all</button>
+		<button class="inverse_selection select_operation" title="Click to inverse result selection" onclick="select_all('inverse')" >Inverse selection</button>
+	</div>
+</div>
+
+<!-- Second row of action -->
+<div class="actions results_actions" style="display:none;">
+	<p class="results_message">
+	</p>
+	<button class="bring_online" title="Bring data online at ROB" onclick="bring_online();">Bring online</button>
+</div>
+
