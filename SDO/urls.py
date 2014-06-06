@@ -1,6 +1,6 @@
 from django.conf.urls import patterns, include, url
 
-from django.contrib import admin
+from django.contrib import admin, auth
 admin.autodiscover()
 
 urlpatterns = patterns('',
@@ -9,6 +9,7 @@ urlpatterns = patterns('',
     # url(r'^blog/', include('blog.urls')),
 
     url(r'^admin/', include(admin.site.urls)),
+    url(r'^accounts/', include('accounts.urls', namespace="accounts")),
     url(r'^DRMS/', include('DRMS.urls', namespace="DRMS")),
     url(r'^PMD/', include('PMD.urls', namespace="PMD")),
 )

@@ -36,32 +36,36 @@
      It is outside of the tabs, but will be moved inside the current tab by jquery, so dates remain
 -->
 <div class="form_section" id="time_range">
-	<p class="form_section_title">
+	<div class="form_section_title">
 		Select time range
-	</p>
+	</div>
+	<div class="form_section_content">
 	{{ time_range_form.as_p }}
+	</div>
 </div>
 
 <div id="tabs">
 	<!-- Tabs declaration -->
 	<ul>
 		{% for form in data_series_forms %}
-			<li><a href="#tab_{{ form.data_series.value }}">{{ form.data_series.value }}</a></li>
+			<li><a href="#tab_{{ form.data_series_name.value }}">{{ form.data_series_name.value }}</a></li>
 		{% endfor %}
 	</ul>
 	<!-- Tabs definition -->
 	{% for form in data_series_forms %}
-	<!-- {{ form.data_series.value }} tab content-->
-		<div id="tab_{{ form.data_series.value }}" class="tab_content">
+	<!-- {{ form.data_series_name.value }} tab content-->
+		<div id="tab_{{ form.data_series_name.value }}" class="tab_content">
 			<form action="/PMD/search_data" method="get">
 				<div class="form_section specific_criteria">
-					<p class="form_section_title">
+					<div class="form_section_title">
 						Select search criteria
-					</p>
-					{% csrf_token %}
-					{{ form.as_p }}
+					</div>
+						<div class="form_section_content">
+						{% csrf_token %}
+						{{ form.as_p }}
+						</div>
 				</div>
-				<input type="submit" value="Submit" />
+				<input type="submit" value="Search" id="id_submit_search"/>
 			</form>
 		</div>
 	{% endfor %}

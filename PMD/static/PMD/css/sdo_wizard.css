@@ -26,24 +26,25 @@ div.form_section {
 	margin: 1em 0em;
 }
 
-p.form_section_title {
+div.form_section_title {
 	/* The vertiacl-align seems to be ignored for some reason so hacking it with padding*/
 	vertical-align: middle !important;
 	padding: 0.5em 1em;
 }
 
-div.search_criteria * {
+div.form_section_content * {
 	vertical-align: top;
 }
 
-div.search_criteria_label {
+div.form_section_content>p label {
 	width: 15em;
 	display: inline-block;
 	margin: 0.5em;
 	text-align: right;
+	border: 3px double red;
 }
 
-div.search_criteria_inputs {
+div.form_section_content>p input {
 	display: inline-block;
 	margin: 0.5em;
 	width: 25em;

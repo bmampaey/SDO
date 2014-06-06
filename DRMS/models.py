@@ -10,11 +10,6 @@
 from __future__ import unicode_literals
 
 from django.db import models
-import django.db.models.options as options
-
-# This allow us to add a fully_qualified_db_table filed to teh mata class
-options.DEFAULT_NAMES = options.DEFAULT_NAMES + ('fully_qualified_db_table',)
-
 
 class DRMSDataSeries(models.Model):
 	name = models.CharField("Data series name", help_text = "Meta-data database table of the data series. Must be fully qualified.", max_length=20, primary_key = True)
@@ -38,16 +33,8 @@ class DRMSDataSeries(models.Model):
 					self.__fits_header_model = DRMS_model
 				elif DRMS_model._meta.db_table == self.fits_keyword_view:
 					self.__fits_keyword_model = DRMS_model
-				elif DRMS_model._meta.fully_qualified_db_table == self.name:
-					self.__drms_model = DRMS_model
 			except Exception:
 				pass
-	
-	@property
-	def drms_model(self):
-		if not hasattr(self, '__drms_model'):
-			self.__set_models()
-		return self.__drms_model
 	
 	@property
 	def fits_header_model(self):
