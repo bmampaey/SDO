@@ -94,7 +94,7 @@ def update_request(request, result, log = None):
 		# Because we don't know how to cope we just throw an exception
 		raise Exception("No series found in result %s for request %s" % (result, request))
 	
-	elif request.data_series.data_series.name is not None and result['series'] != request.data_series.data_series.name:
+	elif result['series'] != request.data_series.name:
 		# Because we don't know how to cope we just throw an exception
 		raise Exception("Mismatch series name in result %s for request %s" % (result, request))
 	

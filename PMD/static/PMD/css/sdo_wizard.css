@@ -1,14 +1,6 @@
 body {
-	margin:  1em 0.5em;
-	width: 1024px;
-}
-li, ul, ol {
-	line-height: 1.2em;	
-}
-
-/* Series name subtitle */
-p.series_spec {
-	font-size: 60%;
+	padding: 1em 0.5em;
+	vertical-align: middle;
 }
 
 /* User identification*/
@@ -16,126 +8,127 @@ p.series_spec {
 	text-align: right;
 	z-index: 1;
 }
+
 #user_id>p {
-	vertical-align: bottom;
 	color: gray;
 }
 
-/* Form section elements */
-div.form_section {
+/* Tab elements and content */
+
+div#tabs {
+}
+
+li#user_tab {
+	float:right!important;
+}
+
+div.tab_content {
+	/* For search button at the bottom 
+	position:relative; */
+//	height:100%;
+}
+
+div.search_panel {
+	display: inline-block;
+	min-height:100%;
+	background: #BB66FF;
+}
+
+div.result_panel {
+	display: inline-block;
+	min-height:100%;
+	background: #BBFFFF;
+}
+
+
+/* Section elements */
+div.section {
 	margin: 1em 0em;
 }
 
-div.form_section_title {
-	/* The vertiacl-align seems to be ignored for some reason so hacking it with padding*/
-	vertical-align: middle !important;
+div.section_title {
 	padding: 0.5em 1em;
 }
 
-div.form_section_content * {
-	vertical-align: top;
+/*
+div.section_content * {
+	vertical-align: middle;
 }
+*/
 
-div.form_section_content>p label {
-	width: 15em;
+div.actions {
+	margin: 1em 0em;
+	text-align: center;
+}
+/* Form elements */
+
+
+p label {
+	width: 10em;
 	display: inline-block;
 	margin: 0.5em;
 	text-align: right;
-	border: 3px double red;
 }
 
-div.form_section_content>p input {
-	display: inline-block;
-	margin: 0.5em;
-	width: 25em;
-}
-div.search_criteria_inputs label {
-	white-space: nowrap;
-	margin-left: 0.5em;
-
+input[type='text']{
+	height: 1em;
 }
 
-div.input_label {
-	margin-top: 1em;
+img.ui-datepicker-trigger {
+	margin: 0 0.5em;
 }
 
-
-/* Time range select table*/
-div#time_range table td {
-	width: 15em;
-	padding: 0 1em;
-} 
- 
-
-div.keyword_list {
-	height: 8em;
-	overflow: auto;
-	margin: 0.2em 0 0.2em 1em;
+select#id_cadence_multiplier{
+	height: 1.5em;
+	margin: 0 0.3em;
 }
 
-label.keyword {
-	display: inline-block;
-	width: 17%;
-	padding-left: 0.1em;
-	white-space: nowrap;
-}
-
-p.search_message {
-	min-height: 3em;
-	padding: 0.4em 1em;
-	margin: 1em 0;
+select[multiple="multiple"] {
+	min-width: 4em;
 }
 
 
-div.search_results {
-	margin: 1em 0;
+/* Table results */
+table.result_table {
+	margin: 0em 1em;
 }
 
-
-
-
-
-
-/* Make the search_results table to be scrollable */ 
-table.search_results_table{
-	display: block;
-	overflow:auto;
-	max-height:20em;
-}
-
-/* Make table header movable to the top */
-table.search_results_table>thead {
-	display: block;
-	position:relative;
-	background-color: white;
-	z-index: 1;
-}
-
-/* Make column width to be at least the size of the keyword name + a little something for the arrows */
-table.search_results_table tr>td:nth-child(n+4){
-	min-width: 7em;
-}
-
-/* Style table cells */
-table.search_results_table>thead th{
-//	display: inline-block;
+table.result_table>thead th{
 	min-height: 1em;
 	text-align: left;
 	padding: 0.2em 0.5em;
-	border-right: 1px dotted white;
 }
 
-table.search_results_table>tbody td{
+table.result_table>tbody td{
 	text-align: right;
 	padding: 0.2em 0.5em;
 	border-right: 1px dotted black;
+	border-left: 1px dotted black;
 }
 
+div.page_navigation {
+	text-align: center;
+	margin: 1em 0em;
+}
 
-p.results_message {
-	min-height: 3em;
-	padding: 0.4em 1em;
-	margin: 1em 0;
+div.page_navigation button>span.ui-button-text {
+    padding-top: 0em;
+    padding-bottom: 0em;
+    font-size: small;
+}
+
+button.first_page, button.previous_page, button.next_page, button.last_page {
+	height: 1em;
+	width: 1em;
+	vertical-align: middle;
+}
+
+button.first_page, button.previous_page {
+	float: left	;
+}
+
+button.next_page, button.last_page {
+	float: right;
 }
 
 /* Icon buttons */
@@ -152,11 +145,11 @@ div.dialog_box label {
 	line-height: 150%;
 }
 
+p.search_message {
+	min-height: 3em;
+	padding: 0.4em 1em;
+	margin: 1em 0;
+}
 
 
-input[type='text']{
-	height: 1em;
-}
-select{
-	height: 1.5em;
-}
+

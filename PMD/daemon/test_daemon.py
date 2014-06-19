@@ -3,9 +3,12 @@ from celery_tasks import get_data_location_tasks, save_data_location_tasks
 from request import DataLocationRequest, DownloadRequest
 
 data_location_requests = [
-	DataLocationRequest('JSOC', 'aia.lev1', 547696328),
-	DataLocationRequest('ROB', 'aia.lev1', 547696327)
+	DataLocationRequest('JSOC', 'aia.lev1', 547696328, segment = "aia.lev1"),
+	DataLocationRequest('JSOC', 'hmi.ic_45s', 547696327)
 ]
+
+data_location_request = data_location_requests[0]
+req = get_data_location_tasks[data_location_request.data_site_name].apply_async([data_location_request], link=save_data_location_tasks[data_location_request.data_site_name].s(), link_error=save_data_location_tasks[data_location_request.data_site_name].s())
 
 requests = dict()
 for data_location_request in data_location_requests:

@@ -1,0 +1,66 @@
+{% if records %}
+<table class="result_table" summary="Search results">
+	<thead>
+		<tr>
+			<th></th><!-- preview column -->
+			<th></th><!-- download column -->
+			<th></th><!-- select column -->
+			{% for header in headers %}
+			<th>{{ header }}</th>
+			{% endfor %}
+		</tr>
+	</thead>
+	<tbody>
+		{% for record in records %}
+		<tr>
+			<td>
+				<button class="preview_image" title="Preview image" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "recnum": {{ record.recnum }} }'></button>
+			</td>
+			<td>
+				<button class="download_fits" title="Download fits file" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "recnum": {{ record.recnum }} }'></button>
+			</td>
+			<td>
+				<input type="checkbox" value="{{ record.recnum }}" name="recnum"></input>
+			</td>
+			{% for field in record.fields %}
+			<td>{{ field }}</td>
+			{% endfor %}
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+<div class = "page_navigation">
+	<tr>
+	{% if first_page_number %}
+	<button class="first_page" title="Go to first page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>First page</button>
+	{% else %}
+	<button class="first_page" title="Go to first page" disabled="true">First page</button>
+	{% endif %}
+	{% if previous_page_number %}
+	<button class="previous_page" title="Go to previous page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>Previous page</button>
+	{% else %}
+	<button class="previous_page" title="Go to previous page" disabled="true">Previous page</button>
+	{% endif %}
+	<!-- Select all and none buttons -->
+	<button class="select_all" title="Select all">Select all</button>
+	<button class="unselect_all" title="Unselect all">Unselect all</button>
+	{% if next_page_number %}
+	<button class="next_page" title="Go to next page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>Next page</button>
+	{% else %}
+	<button class="next_page" title="Go to next page" disabled="true">Next page</button>
+	{% endif %}
+	{% if last_page_number %}
+	<button class="last_page" title="Go to last page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>Last page</button>
+	{% else %}
+	<button class="last_page" title="Go to last page" disabled="true">Last page</button>
+	{% endif %}
+	</tr>
+</div>
+
+{% elif message %}
+<p>{{ message }}</p>
+{% else %}
+<p>Nothing correspond to your search criteria.</p>
+</tbody>
+{% endif %}
+

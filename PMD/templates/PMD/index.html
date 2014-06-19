@@ -79,13 +79,13 @@
 	<!-- Tabs declaration -->
 	<ul>
 		{% for data_series in data_series_list %}
-			<li><a href="#tab_{{ data_series.db_table }}">{{ data_series.data_series }}</a></li>
+			<li><a href="#tab_{{ data_series.record_table }}">{{ data_series.name }}</a></li>
 		{% endfor %}
 	</ul>
 	<!-- Tabs definition -->
 	{% for data_series in data_series_list %}
-		<!-- {{ data_series.data_series }} tab content-->
-		<div id="tab_{{ data_series.db_table }}" class="tab_content">
+		<!-- {{ data_series.name }} tab content-->
+		<div id="tab_{{ data_series.record_table }}" class="tab_content">
 			<div class="form_section specific_criteria">
 				<p class="form_section_title">
 					Select search criteria
@@ -103,7 +103,7 @@
 					</div>
 				</div>
 				<!-- For aia.lev1 we add wavelenth checkboxes -->
-				{% if data_series.data_series.name == "aia.lev1" %}
+				{% if data_series.name == "aia.lev1" %}
 					<div class="search_criteria">
 						<div class="search_criteria_label">
 							Wavelengths
@@ -139,7 +139,6 @@
 				<div>
 					<button class="select_all select_operation" title="Click to select all results" onclick="select_all('select')" >Select all</button>
 					<button class="unselect_all select_operation" title="Click to unselect all results" onclick="select_all('unselect')" >Unselect all</button>
-					<button class="inverse_selection select_operation" title="Click to inverse result selection" onclick="select_all('inverse')" >Inverse selection</button>
 				</div>
 			</div>
 		

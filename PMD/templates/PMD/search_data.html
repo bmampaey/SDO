@@ -10,8 +10,8 @@
 		<script src="{% static "PMD/js/iso8601.js" %}" type="text/javascript"></script>
 		<script src="{% static "PMD/js/fix_ie.js" %}" type="text/javascript"></script>
 		<!-- Include jquery libraries and plugins -->
-		<script src="{% static "PMD/js/jquery-1.10.2.js" %}" type="text/javascript"></script>
-		<script src="{% static "PMD/js/jquery-ui-1.10.4.min.js" %}" type="text/javascript"></script>
+		<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+		<script src="//code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
 		<script src="{% static "PMD/js/jquery-ui-timepicker-addon.js" %}" type="text/javascript"></script>
 		<script src="{% static "PMD/js/jquery.cookie.js" %}" type="text/javascript"></script>
 		<script src="{% static "PMD/js/json.js" %}" type="text/javascript"></script>
@@ -20,6 +20,11 @@
 		<!-- Include application javascripts -->
 		<script src="{% static "PMD/js/sdo_wizard.js" %}" type="text/javascript"></script>
 		
+		<!-- Javascript constants -->
+		<script type="text/javascript" charset="utf-8">
+			CALENDAR_IMAGE_URL = "{% static 'PMD/images/calendar.png' %}";
+		</script>		
+		
 		<!-- Include stylesheets -->
 		<link rel="stylesheet" href="{% static "PMD/css/reset.css" %}" type="text/css">
 		<link rel="stylesheet" href="{% static "PMD/css/jquery-ui-1.8.16.custom.css" %}" type="text/css">
@@ -27,20 +32,27 @@
 	</head>
 <body>
 
-<!-- Username and logout link --> 
-<div id="user_id">	
-<p>You are logged in as {{ user.username }} <a href="{% url 'accounts:django.contrib.auth.views.logout' %}?next=/PMD/">Logout</a></p>
-</div>
-
-<!-- Form for time range 
-     It is outside of the tabs, but will be moved inside the current tab by jquery, so dates remain
--->
-<div class="form_section" id="time_range">
-	<div class="form_section_title">
-		Select time range
+<!-- Form for time range. It is outside of the tabs, but will be moved inside the current tab by jquery, so dates remain when moving between tabs -->
+<div class="section" id="time_range">
+	<div class="section_title">
+		Select time range and optional cadence
 	</div>
-	<div class="form_section_content">
-	{{ time_range_form.as_p }}
+	<div class="section_content">
+		<p> <!-- start date -->
+			{{ time_range_form.start_date.label_tag }}
+			{{ time_range_form.start_date }}
+		</p>
+		
+		<p> <!-- end date -->
+			{{ time_range_form.end_date.label_tag }}
+			{{ time_range_form.end_date }}
+		</p>
+		
+		<p> <!-- cadence -->
+			{{ time_range_form.cadence.label_tag }}
+			{{ time_range_form.cadence }}
+			{{ time_range_form.cadence_multiplier }}
+		</p>
 	</div>
 </div>
 
@@ -48,47 +60,60 @@
 	<!-- Tabs declaration -->
 	<ul>
 		{% for form in data_series_forms %}
-			<li><a href="#tab_{{ form.data_series_name.value }}">{{ form.data_series_name.value }}</a></li>
+		<li><a href="#{{ form.data_series }}">{{ form.pretty_name }}</a></li>
 		{% endfor %}
+		<li id="user_tab"><a href="#user"><span class="ui-icon ui-icon-person" style="display: inline-block"></span> {{ user.username }}</a></li>
 	</ul>
-	<!-- Tabs definition -->
+	
+	<!-- User Tab definition --> 
+	<div id="user">
+	<p>You are currently logged in as {{ user.username }} <button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></p>
+	</div>
+	
+	<!-- Data Series Tab definitions -->
 	{% for form in data_series_forms %}
-	<!-- {{ form.data_series_name.value }} tab content-->
-		<div id="tab_{{ form.data_series_name.value }}" class="tab_content">
-			<form action="/PMD/search_data" method="get">
-				<div class="form_section specific_criteria">
-					<div class="form_section_title">
-						Select search criteria
-					</div>
-						<div class="form_section_content">
-						{% csrf_token %}
-						{{ form.as_p }}
+	<!-- {{ form.data_series }} tab content-->
+		<div id="{{ form.data_series }}" class="tab_content">
+			<!-- {{ form.data_series }} search form -->
+			<div class="search_panel">
+				<form>
+					<div class="section specific_search_criteria">
+						<div class="section_title">
+							Select search criteria
 						</div>
+							<div class="section_content">
+							{{ form.as_p }}
+							</div>
+					</div>
+					<div class="actions search_actions">
+						<button class="search_data" title="Search data" params='{"url": "{% url "PMD:result_table" form.data_series %}", "data_series": "{{ form.data_series }}", "page": 1 }'>Search data</button>
+					</div>
+				</form>
+			</div>
+			<!-- {{ form.data_series }} search results -->
+			<div class="result_panel">
+				<div class="section search_results">
+					<div class="section_title">
+						Search results
+					</div>
+					<div class="section_content">
+						<p style="vertical-align: top">&#8679; 1. Select a data set here.</p>
+						<p style="vertical-align: middle">&#8678; 2. Enter your search criteria here.</p>
+						<p style="vertical-align: middle">&#8661; 3. The results will appear here. Select what you want.</p>
+						<p style="vertical-align: bottom">&#8681; 4. Use the buttons here.</p>
+					</div>
 				</div>
-				<input type="submit" value="Search" id="id_submit_search"/>
-			</form>
+				<div class="actions result_actions">
+					<button class="download_data" title="Download the selected data as a zip file">Download data</button>
+					<button class="export_data" title="Export the selected data to ftp">Export data</button>
+					<button class="export_keywords" title="Export the selected rows to csv file"">Export keywords</button>
+					<button class="bring_online" title="Bring data online at ROB">Bring online</button>
+					<button class="get_cutout" title="Download a cutout of the selected data">Get cutout</button>
+				</div>
+			</div>
 		</div>
 	{% endfor %}
 </div>
 
-<!-- Tables of search results -->
-<div class="search_results" style="display:none;">
-	<!-- At the beginning the table is empty -->
-	<table class="search_results_table fixedheader" summary="Search results">
-		<thead><tr></tr></thead>
-		<tbody></tbody>
-	</table>
-	<div>
-		<button class="select_all select_operation" title="Click to select all results" onclick="select_all('select')" >Select all</button>
-		<button class="unselect_all select_operation" title="Click to unselect all results" onclick="select_all('unselect')" >Unselect all</button>
-		<button class="inverse_selection select_operation" title="Click to inverse result selection" onclick="select_all('inverse')" >Inverse selection</button>
-	</div>
-</div>
 
-<!-- Second row of action -->
-<div class="actions results_actions" style="display:none;">
-	<p class="results_message">
-	</p>
-	<button class="bring_online" title="Bring data online at ROB" onclick="bring_online();">Bring online</button>
-</div>
 

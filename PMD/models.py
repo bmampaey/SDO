@@ -1,12 +1,11 @@
 import os
 from datetime import datetime, timedelta
+import dateutil.parser as date_parser
 
 from django.db import models
-from datetime import datetime, timedelta
-from DRMS.models import DRMSDataSeries
 from django.forms.models import model_to_dict
 
-import dateutil.parser as date_parser
+from DRMS.models import DRMSDataSeries
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
 
 class GlobalConfig(models.Model):
@@ -17,7 +16,7 @@ class GlobalConfig(models.Model):
 		("datetime", "datetime (iso format)"),
 		("timedelta", "timedelta (in seconds)"),
 	)
-	name = models.CharField(max_length = 20, primary_key = True)
+	name = models.CharField(max_length = 40, primary_key = True)
 	value = models.CharField(max_length = 80, blank=False, null=False)
 	python_type = models.CharField(max_length = 9, blank=False, null=False, default = "string", choices = PYTHON_TYPE_CHOICES)
 	help_text = models.CharField(max_length = 80, blank=True, null=True, default = None)
@@ -30,8 +29,12 @@ class GlobalConfig(models.Model):
 		return unicode(self.name)
 	
 	@classmethod
-	def get(cls, name):
-		variable = cls.objects.get(name=name)
+	def get(cls, name, default = None):
+		try:
+			variable = cls.objects.get(name=name)
+		except cls.DoesNotExist:
+			return default
+		
 		if variable.python_type == "string":
 			return variable.value
 		elif variable.python_type == "int":
@@ -40,7 +43,7 @@ class GlobalConfig(models.Model):
 			return float(variable.value)
 		elif variable.python_type == "datetime":
 			return date_parser.parse(variable.value)
-		elif variable.python_type == "timedeta":
+		elif variable.python_type == "timedelta":
 			return timedelta(seconds=int(variable.value))
 		else:
 			raise Exception("Unknown python type for global config variable " + name)
@@ -88,11 +91,11 @@ class DataSite(models.Model):
 		return self.__data_location_model
 
 class DataSeries(models.Model):
-	data_series = models.OneToOneField(DRMSDataSeries, help_text="DRMS data series.", on_delete=models.DO_NOTHING, related_name='+', db_column = "name", primary_key=True)
+	drms_series = models.OneToOneField(DRMSDataSeries, help_text="DRMS data series name.", on_delete=models.DO_NOTHING, related_name='+', db_column = "drms_series_name", primary_key=True)
 	retention = models.PositiveIntegerField(help_text = "Default minimum number of days before deleting the data.", default=60, blank=True)
 	forced_datasite = models.ForeignKey(DataSite, help_text="Data site name to download the data from. Override the data site priority.", default=None, blank=True, null=True, on_delete=models.SET_NULL, db_column = "forced_datasite")
 	last_treated_recnum = models.IntegerField(help_text = "Last record number treated.", default=0, blank=True, null=True)
-	db_table = models.CharField(help_text = "PMD table name for the data series.", max_length=20, blank=False, null=False)
+	record_table = models.CharField(help_text = "PMD record table name for the data series.", max_length=20, blank=False, null=False)
 	
 	class Meta:
 		db_table = "data_series"
@@ -105,29 +108,33 @@ class DataSeries(models.Model):
 	def default_expiration_date(self, date = datetime.utcnow()):
 		return date + timedelta(days = self.retention)
 	
+	@property
+	def name(self):
+		return self.drms_series.name
+	
 	def __set_models(self):
 		import PMD.models as PMD_models
 		for model_name in dir(PMD_models):
 			try:
 				PMD_model = getattr(PMD_models, model_name)
-				if PMD_model._meta.db_table == self.db_table:
-					self.__model = PMD_model
+				if PMD_model._meta.db_table == self.record_table:
+					self.__record_model = PMD_model
 			except Exception:
 				pass
 	
 	@property
-	def model(self):
-		if not hasattr(self, '__model'):
+	def record(self):
+		if not hasattr(self, '__record_model'):
 			self.__set_models()
-		return self.__model
+		return self.__record_model
 	
 	@property
 	def average_file_size(self):
-		return self.model.average_file_size
+		return self.record.average_file_size
 	
 	@property
 	def hdu(self):
-		return self.model.hdu
+		return self.record.hdu
 	
 	def get_header_values(self, request):
 		# We must translate the attributes name to the real keyword name
@@ -175,35 +182,82 @@ class PMDDataLocation(models.Model):
 	def __unicode__(self):
 		return u"%s %s" % (self.data_series, self.recnum)
 	
-	# Must only be called from LocalDataLocation
 	@classmethod
-	def get_location(cls, request):
+	def _get_location(cls, request):
 		return cls.objects.get(data_series = request.data_series, recnum = request.recnum)
 	
-	# Must only be called from LocalDataLocation
 	@classmethod
-	def _delete_location(cls, request):
-		data_location = cls.objects.get(data_series = request.data_series, recnum = request.recnum)
-		data_location.delete()
+	def get_file_path(cls, request):
+		data_location = cls._get_location(request)
+		return data_location.path
 	
-	# Must only be called from LocalDataLocation
 	@classmethod
-	def _create_location(cls, request):
+	def save_path(cls, request, path):
+		# TODO In django 1.7 use update_or_create
+		data_location, created = cls.objects.get_or_create(data_series = request.data_series, recnum = request.recnum, defaults = dict(path = path))
+		if not created:
+			data_location.path = path
+			data_location.save()
+
+
+class LocalDataLocation(PMDDataLocation):
+	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the data from the system.", blank=False, null=False)
+	last_request_date = models.DateTimeField(help_text = "Date at which the data was last requested.", blank=False, null=False, default = datetime.now())
+	
+	class Meta(PMDDataLocation.Meta):
+		db_table = "data_location"
+		verbose_name = "Local data location"
+	
+	def save(self, *args, **kwargs):
+		if self.expiration_date is None:
+			self.expiration_date = self.data_series.default_expiration_date()
+		super(LocalDataLocation, self).save(*args, **kwargs)
+	
+	@classmethod
+	def has_expired(cls, request):
+		data_location = cls._get_location(request)
+		if data_location.expiration_date > datetime.now():
+			return False
+		else:
+			return True
+	
+	@classmethod
+	def last_requested(cls, request):
+		data_location = cls._get_location(request)
+		return data_location.last_request_date
+	
+	@classmethod
+	def create_location(cls, request):
 		cache = GlobalConfig.get("cache")
-		path = os.path.join(cache, request.data_series.data_series.name, "%s.%s" % (request.recnum, request.segment))
+		path = os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment))
 		cls.save_path(request, path)
 		return path
 	
 	@classmethod
 	def get_file_path(cls, request):
-		return cls.get_location(request).path
+		# For local data location we update the request date
+		data_location = cls._get_location(request)
+		data_location.last_request_date = datetime.now()
+		data_location.save()
+		return data_location.path
 	
 	@classmethod
 	def save_path(cls, request, path):
-		data_location, created = cls.objects.get_or_create(data_series = request.data_series, recnum = request.recnum, defaults = dict(path = path))
-		if not created:
-			data_location.path = path
+		# For local data location we set the expiration date
+		super(LocalDataLocation, cls).save_path(request, path)
+		if request.expiration_date:
+			data_location = cls._get_location(request)
+			data_loaction.expiration_date = request.expiration_date
 			data_location.save()
+	
+	@classmethod
+	def delete_location(cls, request):
+		# We allow that the data location does not exist
+		try:
+			data_location = cls._get_location(request)
+		except cls.DoesNotExist:
+			return
+		data_location.delete()
 
 
 class DrmsDataLocation(models.Model):
@@ -217,86 +271,20 @@ class DrmsDataLocation(models.Model):
 	def __unicode__(self):
 		return u"%s D%d" % (self.data_series, self.sunum)
 	
-	def __file_path(self, slotnum, segment):
-		return os.path.join(self.path, "S%05d" % slotnum, segment)
-	
-	# Must only be called from LocalDataLocation
 	@classmethod
-	def get_location(cls, request):
+	def _get_location(cls, request):
 		return cls.objects.get(sunum = request.sunum)
-	
-	# Must only be called from LocalDataLocation
-	@classmethod
-	def _delete_location(cls, request):
-		raise NotImplementedError
-	
-	# Must only be called from LocalDataLocation
-	@classmethod
-	def _create_location(cls, request):
-		# Check first that the location doesn't exist yet
-		try:
-			path = cls.get_file_path(request)
-		except cls.DoesNotExist:
-			# Create a new location by calling the sum_svc
-			# Do a vso_sum_alloc to get a directory
-			if not hasattr(request, 'size') or not request.size:
-				request.size = request.data_series.average_file_size
-			path = call_vso_sum_alloc(request.data_series.name, request.sunum, request.size, vso_sum_alloc = GlobalConfig.get("vso_sum_alloc"))
-			# Do a vso_sum_put to register the directory
-			if not request.expiration_date:
-				retention = request.data_series.retention
-			else:
-				retention = (request.expiration_date - datetime.now()).days
-			call_vso_sum_put(request.data_series.name, request.sunum, path, retention, vso_sum_put = GlobalConfig.get("vso_sum_put"))
-			cls.save_path(request, path)
-		return path
 	
 	@classmethod
 	def get_file_path(cls, request):
-		return cls.get_location(request).__file_path(request.slotnum, request.segment)
+		data_location = cls._get_location(request)
+		return os.path.join(data_location.path, "S%05d" % request.slotnum, request.segment)
 	
 	@classmethod
 	def save_path(cls, request, path):
-		data_location, created = cls.objects.get_or_create(data_series = request.data_series, sunum = request.sunum, defaults = dict(path = path))
+		data_location, created = cls.objects.get_or_create(sunum = request.sunum, defaults = dict(data_series = request.data_series, path = path))
 		if not created:
 			data_location.path = path
-			data_location.save()
-
-
-class LocalDataLocation(PMDDataLocation):
-	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the data from the system.", blank=False, null=False)
-	last_request_date = models.DateTimeField(help_text = "Date at which the data was last requested.", blank=False, null=False, default = datetime.now())
-	
-	class Meta(DrmsDataLocation.Meta):
-		db_table = "data_location"
-		verbose_name = "Local data location"
-	
-	def save(self, *args, **kwargs):
-		if self.expiration_date is None:
-			self.expiration_date = self.data_series.default_expiration_date()
-		super(LocalDataLocation, self).save(*args, **kwargs)
-	
-	@classmethod
-	def get_location(cls, request):
-		data_location = super(LocalDataLocation, cls).get_location(request)
-		data_location.last_request_date = datetime.now()
-		data_location.save()
-		return data_location
-	
-	@classmethod
-	def delete_location(cls, request):
-		cls._delete_location(request)
-	
-	@classmethod
-	def create_location(cls, request):
-		return cls._create_location(request)
-	
-	@classmethod
-	def save_path(cls, request, path):
-		super(LocalDataLocation, cls).save_path(request, path)
-		if request.expiration_date:
-			data_location = cls.get_location(request)
-			data_loaction.expiration_date = request.expiration_date
 			data_location.save()
 
 class ROBDataLocation(DrmsDataLocation):
@@ -317,16 +305,21 @@ class SAODataLocation(DrmsDataLocation):
 		db_table = "sao_data_location"
 		verbose_name = "SAO data location"
 
-####################
-# Meta Data models #
-####################
+#####################
+# PMD record models #
+#####################
 
-class AiaLev1(models.Model):
+class PmdRecord(models.Model):
 	recnum = models.BigIntegerField(primary_key=True)
 	sunum = models.BigIntegerField(blank=True, null=True)
 	slotnum = models.IntegerField(blank=True, null=True)
 	segment = models.TextField(blank=True)
 	date_obs = models.DateTimeField(blank=True, null=True)
+	
+	class Meta:
+		abstract = True
+
+class AiaLev1(PmdRecord):
 	wavelnth = models.FloatField(blank=True, null=True)
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
@@ -340,18 +333,17 @@ class AiaLev1(models.Model):
 		managed = False
 		db_table = 'aia_lev1'
 		unique_together = (("t_rec_index", "fsn"),)
+		ordering = ["t_rec_index"]
 		verbose_name = "AIA Lev1"
 	
 	def __unicode__(self):
 		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
+		
+	def filename(self):
+		return "AIA.%s.%04d.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.wavelenth, self.segment)
 
 
-class HmiIc45S(models.Model):
-	recnum = models.BigIntegerField(primary_key=True)
-	sunum = models.BigIntegerField(blank=True, null=True)
-	slotnum = models.IntegerField(blank=True, null=True)
-	segment = models.TextField(blank=True)
-	date_obs = models.DateTimeField(blank=True, null=True)
+class HmiIc45S(PmdRecord):
 	wavelnth = models.FloatField(blank=True, null=True)
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
@@ -365,18 +357,17 @@ class HmiIc45S(models.Model):
 		managed = False
 		db_table = 'hmi_ic_45s'
 		unique_together = (("t_rec_index", "camera"),)
+		ordering = ["t_rec_index"]
 		verbose_name = "HMI M45s"
 	
 	def __unicode__(self):
 		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
+	
+	def filename(self):
+		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
 
 
-class HmiM45S(models.Model):
-	recnum = models.BigIntegerField(primary_key=True)
-	sunum = models.BigIntegerField(blank=True, null=True)
-	slotnum = models.IntegerField(blank=True, null=True)
-	segment = models.TextField(blank=True)
-	date_obs = models.DateTimeField(blank=True, null=True)
+class HmiM45S(PmdRecord):
 	wavelnth = models.FloatField(blank=True, null=True)
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
@@ -390,8 +381,79 @@ class HmiM45S(models.Model):
 		managed = False
 		db_table = 'hmi_m_45s'
 		unique_together = (("t_rec_index", "camera"),)
+		ordering = ["t_rec_index"]
 		verbose_name = "HMI M45s"
 	
 	def __unicode__(self):
 		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
+	
+	def filename(self):
+		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
 
+##################
+# Request models #
+##################
+
+class Request(models.Model):
+	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.PROTECT, db_column = "data_series_name")
+	sunum = models.BigIntegerField(help_text = "JSOC Storage Unit number", blank=False, null=False)
+	slotnum = models.IntegerField(help_text = "JSOC Slot number", blank=False, null=False, default=0)
+	segment = models.CharField(help_text = "JSOC Segment name.", max_length=255, blank=False, null=False)
+	recnum = models.IntegerField(help_text = "JSOC Record number", blank=True, null=True, default=0)
+	status = models.CharField(help_text = "Request status.", max_length=8, blank=False, null=False, default = "NEW")
+	priority = models.PositiveIntegerField(help_text = "Priority of execution. The higher the value, the higher the priority.", default=0, blank=True)
+	requested = models.DateTimeField(help_text = "Date of request.", null=False, auto_now_add = True)
+	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
+	
+	class Meta:
+		abstract = True
+		ordering = ["priority", "requested"]
+		get_latest_by = "requested"
+	
+	def __unicode__(self):
+		return u"%s D%d/S%05d %s" % (self.data_series.name, self.sunum, self.slotnum, self.status)
+	
+	def __lt__(self, other):
+		'''Return true if the priority is bigger'''
+		if self.priority > other.priority:
+			return True
+		elif self.priority == other.priority:
+			return self.requested < other.requested
+		else:
+			return False
+	
+	# Not a good idea to overide the init method of models
+	@classmethod
+	def create_from_record(cls, record, priority = 0):
+		request = cls(data_series = DataSeries.objects.get(db_table = record._meta.db_table), sunum = record.sunum, slotnum = record.slotnum, segment = record.segment, recnum = record.recnum, priority = priority)
+		request.size = request.data_series.average_file_size
+		return request
+
+class DataDownloadRequest(Request):
+	data_site = models.ForeignKey(DataSite, help_text="Name of the data site from which to download the data from.", on_delete=models.PROTECT, db_column = "data_site_name")
+	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the data from the system.", blank=True, null=True)
+	remote_file_path = models.CharField(help_text = "File path at the remote data site", max_length=255, blank=True, null=True, default=None)
+	local_file_path = models.CharField(help_text = "File path at the local data site", max_length=255, blank=True, null=True, default=None)
+	
+	class Meta(Request.Meta):
+		db_table = "data_download_request"
+		verbose_name = "Data download request"
+
+class DataLocationRequest(Request):
+	data_site = models.ForeignKey(DataSite, help_text="Name of the data site from which to find the location of the data from.", on_delete=models.PROTECT, db_column = "data_site_name")
+	
+	class Meta(Request.Meta):
+		db_table = "data_location_request"
+		verbose_name = "Data location request"
+
+class DataDeleteRequest(Request):
+	
+	class Meta(Request.Meta):
+		db_table = "data_delete_request"
+		verbose_name = "Data delete request"
+
+class MetaDataUpdateRequest(Request):
+	
+	class Meta(Request.Meta):
+		db_table = "meta_data_update_request"
+		verbose_name = "Meta-data update request"
