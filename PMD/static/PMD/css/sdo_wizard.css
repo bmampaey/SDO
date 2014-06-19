@@ -1,45 +1,28 @@
 body {
 	padding: 1em 0.5em;
-	vertical-align: middle;
-}
-
-/* User identification*/
-#user_id {
-	text-align: right;
-	z-index: 1;
-}
-
-#user_id>p {
-	color: gray;
+/*	vertical-align: middle; */
 }
 
 /* Tab elements and content */
 
-div#tabs {
-}
-
 li#user_tab {
+	/* Push user tab to the right */
 	float:right!important;
 }
 
-div.tab_content {
-	/* For search button at the bottom 
-	position:relative; */
-//	height:100%;
-}
-
 div.search_panel {
+	/* Put the 2 panels side by side if possible */
 	display: inline-block;
 	min-height:100%;
-	background: #BB66FF;
+	/*background: #BB66FF; */
 }
 
 div.result_panel {
+	/* Put the 2 panels side by side if possible */
 	display: inline-block;
 	min-height:100%;
-	background: #BBFFFF;
+	/*background: #BBFFFF; */
 }
-
 
 /* Section elements */
 div.section {
@@ -50,19 +33,16 @@ div.section_title {
 	padding: 0.5em 1em;
 }
 
-/*
-div.section_content * {
-	vertical-align: middle;
+div.section_content {
+	padding: 0.5em 1em;
 }
-*/
 
 div.actions {
 	margin: 1em 0em;
 	text-align: center;
 }
+
 /* Form elements */
-
-
 p label {
 	width: 10em;
 	display: inline-block;
@@ -89,9 +69,6 @@ select[multiple="multiple"] {
 
 
 /* Table results */
-table.result_table {
-	margin: 0em 1em;
-}
 
 table.result_table>thead th{
 	min-height: 1em;
@@ -106,33 +83,39 @@ table.result_table>tbody td{
 	border-left: 1px dotted black;
 }
 
+/* Table buttons */
 div.page_navigation {
+	/* Push Select all and Unselect all buttons to the center */
 	text-align: center;
 	margin: 1em 0em;
 }
 
-div.page_navigation button>span.ui-button-text {
-    padding-top: 0em;
-    padding-bottom: 0em;
-    font-size: small;
+button.select_all, button.unselect_all {
+	/* Make the buttons smaller */
+	padding-top: 0em;
+	padding-bottom: 0em;
+	font-size: small;
 }
 
-button.first_page, button.previous_page, button.next_page, button.last_page {
+a.first_page, a.previous_page, a.next_page, a.last_page, a.download_fits, a.preview_image {
+	/* Make the buttons tiny squares */
 	height: 1em;
 	width: 1em;
 	vertical-align: middle;
 }
 
-button.first_page, button.previous_page {
+a.first_page, a.previous_page {
+	/* Push buttons to the left */
 	float: left	;
 }
 
-button.next_page, button.last_page {
+a.next_page, a.last_page {
+	/* Push buttons to the right */
 	float: right;
 }
 
 /* Icon buttons */
-button.help, button.download_fits, button.select_operation, button.preview_image {
+button.help {
 	height: 1em;
 	width: 1em;
 	vertical-align: middle;
