@@ -34,7 +34,8 @@ function log(a, b, c, d, e)
 
 function alert_user(message, box)
 {
-	log("alert user", message);
+	// Display a pop up with an error message or write it to the box if provided.
+	log("alert_user message: ", message);
 	if(box == null)
 	{
 		box = $('<div class="ui-state-error"><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
@@ -60,7 +61,8 @@ function alert_user(message, box)
 
 function inform_user(message, box)
 {
-	log("inform user", message);
+	// Display a pop up with a informational message or write it to the box if provided
+	log("inform_user message: ", message);
 	if(box == null)
 	{
 		box = $('<div class="ui-state-highlight"><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
@@ -113,20 +115,12 @@ function unselect_all(context)
 	check_boxes.each(function(){$(this).attr('checked', false)});
 }
 
-function load_result_table(params, query)
+function load_result_table(section_content, table_url)
 {
-	log("load_result_table", params, query);
-	params = $.parseJSON(params);
-	var get_url = params.url + "?page=" + params.page;
-	if(query !== undefined)
-	{	
-		get_url += "&" + query;
-	}
-	
-	var section_content = $("div.search_results>div.section_content", $("#"+params.data_series));
-	log("load_result_table sending request url", get_url);
-	section_content.load(get_url, function(response, status, xhr){
-		log("load_result_table request status", status);
+	// Make an ajax request to table_url and load the result to section_content
+	log("load_result_table url: ", table_url);
+	section_content.load(table_url, function(response, status, xhr){
+		log("load_result_table request status: ", status);
 		if(status == "success")
 		{
 			post_load_result_table(section_content);
@@ -141,19 +135,34 @@ function load_result_table(params, query)
 function post_load_result_table(section_content)
 {
 	log("post_load_result_table");
-	$('button.download_fits', section_content).button({icons: {primary: "ui-icon-arrowthickstop-1-s"}, text:false});
-	$('button.preview_image', section_content).button({icons: {primary: "ui-icon-image"}, text:false});
-	$('button.first_page', section_content).button({icons: {primary: "ui-icon-seek-first"}, text:false}).click(function(e){
-		load_result_table($(this).attr("params"));
+	// Transform download anchors to button
+	$('a.download_fits', section_content).button({icons: {primary: "ui-icon-arrowthickstop-1-s"}, text:false}).click(function(e){
+		e.preventDefault();
+		download_fits($(this), $(this).attr("href"));
 	});
-	$('button.previous_page', section_content).button({icons: {primary: "ui-icon-seek-prev"}, text:false}).click(function(e){
-		load_result_table($(this).attr("params"));
+	// Transform preview anchors to button
+	$('a.preview_image', section_content).button({icons: {primary: "ui-icon-image"}, text:false}).click(function(e){
+		e.preventDefault();
+		preview_image($(this), $(this).attr("href"), $(this).attr("title"));
 	});
-	$('button.next_page', section_content).button({icons: {primary: "ui-icon-seek-next"}, text:false}).click(function(e){
-		load_result_table($(this).attr("params"));
-	});
-	$('button.last_page', section_content).button({icons: {primary: "ui-icon-seek-end"}, text:false}).click(function(e){
-		load_result_table($(this).attr("params"));
+	// Transform navigation anchors to buttons
+	$('a.first_page', section_content).button({icons: {primary: "ui-icon-seek-first"}, text:false});
+	$('a.previous_page', section_content).button({icons: {primary: "ui-icon-seek-prev"}, text:false});
+	$('a.next_page', section_content).button({icons: {primary: "ui-icon-seek-next"}, text:false});
+	$('a.last_page', section_content).button({icons: {primary: "ui-icon-seek-end"}, text:false});
+	// Attach navigation buttons click handler
+	$('div.page_navigation a').each(function(){
+		if($(this).attr("href")) 
+		{
+			$(this).click(function(e){
+				e.preventDefault();
+				load_result_table(section_content, $(this).attr("href"));
+			});
+		}
+		else
+		{
+			$(this).addClass('ui-button-disabled ui-state-disabled');
+		}
 	});
 	$('button.select_all', section_content).button({icons: {primary: "ui-icon-check"}, text:true}).click(function(e){
 		select_all($('table.result_table', section_content));
@@ -161,7 +170,43 @@ function post_load_result_table(section_content)
 	$('button.unselect_all', section_content).button({icons: {primary: "ui-icon-close"}, text:true}).click(function(e){
 		unselect_all($('table.result_table', section_content));
 	});
+
 	// Check if selected_all or selected is not empty, and set as selected
+}
+
+function download_fits(button, file_link)
+{
+	// Change the color of the icon so user knows what he already downloaded
+	button.addClass('ui-button-disabled ui-state-disabled');
+	
+	// Download the file
+	download_file(file_link);
+}
+
+function preview_image(button, image_link, title)
+{
+	if(title == null)
+		title = button.attr("title");
+
+	// Change the color of the icon so user knows what he already downloaded
+	button.addClass('ui-button-disabled ui-state-disabled');
+
+	// Create a dialog box with a default loading image (while the real while is being created)
+	var box = $('<div class="ui-state-highlight preview_image"><img src="' + LOADING_IMAGE_URL + '"/></div>');
+	box.dialog({
+			modal: false,
+			width: 580,
+			title: title,
+			draggable: true,
+			resizable: true,
+			close: function(event, ui) {$( this ).remove(); button.removeClass('ui-button-disabled ui-state-disabled');},
+	});
+
+	// Change the image to the preview. The image switch will append automatically when the good image is available.
+	$("img", box).attr("src", image_link);
+	
+	// Must warn user that it is only a preview
+	box.append('<p class="ui-state-error" style="margin: 1em 0;"><span class="ui-icon ui-icon-alert" style="float: left; margin-right: 0.3em;"></span>The data may differ from the preview.</p>');
 }
 
 // Things to do at the very beginning
@@ -232,6 +277,15 @@ function load_events_handlers()
 	);
 
 	
+	// Transform the search form to do ajax request instead
+	$("form.search_form").submit(function(e){
+		e.preventDefault();
+		var form = $(e.target);
+		log("submit form action: ", form.attr("action"), "query: ", form.serialize());
+		var section_content = $("div.search_results div.section_content", form.closest("div.tab_content"));
+		load_result_table(section_content, form.attr("action") + "?" + form.serialize());
+	});
+
 	// Change helptext into buttons
 	$("span.helptext").replaceWith(function() {return '<button type="button" class="help" title="' + $(this).text() + '">Help</button>';});
 	
@@ -239,10 +293,7 @@ function load_events_handlers()
 	$("button.help").button({icons: {primary: "ui-icon-help"}, text:false}).addClass('ui-state-highlight').click(function(e){
 		inform_user($(this).attr("title"))
 	});
-	$("button.search_data").button({icons: {primary: "ui-icon-search"}}).click(function(e){
-		e.preventDefault();
-		load_result_table($(this).attr("params"), $(this).closest('form').serialize());
-	});
+	$("button.search_data").button({icons: {primary: "ui-icon-search"}});
 	$("button.select_all").button({icons: {primary: "ui-icon-check"}, text:false}).click(function(e){
 		select_all($(this).closest("table"));
 	});
@@ -250,7 +301,7 @@ function load_events_handlers()
 		unselect_all($(this).closest("table"));
 	});
 	$("button.download_data").button({icons: {primary: "ui-icon-cart"}}).hide();
-	$("button.export_data").button({icons: {primary: "ui-icon-extlink"}}).click(function(e){});
+	$("button.export_data").button({icons: {primary: "ui-icon-extlink"}}).click(function(e){$(e.target).prop("disabled", true);});
 	$("button.export_keywords").button({icons: {primary: "ui-icon-document"}}).click(function(e){});
 	$("button.bring_online").button({icons: {primary: "ui-icon-home"}}).hide();
 	$("button.get_cutout").button({icons: {primary: "ui-icon-scissors"}}).hide();
@@ -259,11 +310,12 @@ function load_events_handlers()
 	});
 
 
-	// Set some JQuery classes
+	// Set some JQuery classes to make sections pretty
 	$("div.section").addClass("ui-widget ui-widget-content ui-corner-all");
 	$("div.section_title").addClass("ui-widget-header ui-corner-all ui-helper-clearfix");
 			
 }
+
 // We attach all the events handler 
 $(document).ready(load_events_handlers);
 	

@@ -11,12 +11,12 @@ def data_series_list(request):
 	return HttpResponse(serializers.serialize('json', data_series), mimetype='application/json')
 
 def data_series(request, data_series):
-	data_series_object = get_object_or_404(DRMSDataSeries, table=data_series)
+	data_series_object = get_object_or_404(DRMSDataSeries, name=data_series)
 	data_series_keywords = get_list_or_404(data_series_object.fits_keyword_model)
 	return HttpResponse(serializers.serialize('json', data_series_keywords), mimetype='application/json')
 
 def recnum(request, data_series, recnum):
-	data_series_object = get_object_or_404(DRMSDataSeries, table=data_series)
+	data_series_object = get_object_or_404(DRMSDataSeries, name=data_series)
 	fits_header = get_object_or_404(data_series_object.fits_header_model, recnum=recnum)
 	return HttpResponse(serializers.serialize('json', [fits_header]), mimetype='application/json')
 

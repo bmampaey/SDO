@@ -9,7 +9,8 @@ from PMD.models import AiaLev1, HmiIc45S, HmiM45S
 
 class TimeRangeForm(forms.Form):
 	start_date = forms.DateTimeField(required=False, initial = datetime(2010, 03, 01))
-	end_date = forms.DateTimeField(required=False, initial = datetime.utcnow())
+	#end_date = forms.DateTimeField(required=False, initial = datetime.utcnow())
+	end_date = forms.DateTimeField(required=False, initial = datetime(2010, 06, 01))
 	cadence = forms.IntegerField(required=False, min_value = 1)
 	cadence_multiplier = forms.TypedChoiceField(required=False, coerce=int, choices=[
 		(1,  "second(s)"),
@@ -166,7 +167,8 @@ class AiaLev1SearchForm(DataSeriesForm):
 			table['current_page_number'] = page.number
 			if page.has_next():
 				table['next_page_number'] = page.next_page_number()
-			table['last_page_number'] = paginator.num_pages
+			if page.number < paginator.num_pages:
+				table['last_page_number'] = paginator.num_pages
 		
 		return table
 

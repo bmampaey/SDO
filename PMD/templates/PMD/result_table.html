@@ -14,10 +14,10 @@
 		{% for record in records %}
 		<tr>
 			<td>
-				<button class="preview_image" title="Preview image" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "recnum": {{ record.recnum }} }'></button>
+				<a class="preview_image" title="Preview image" href="{% url 'PMD:thumbnail' data_series record.recnum %}">Preview</a>
 			</td>
 			<td>
-				<button class="download_fits" title="Download fits file" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "recnum": {{ record.recnum }} }'></button>
+				<a class="download_fits" title="Download fits" href="{% url 'PMD:download' data_series record.recnum %}">Download</a>
 			</td>
 			<td>
 				<input type="checkbox" value="{{ record.recnum }}" name="recnum"></input>
@@ -30,31 +30,29 @@
 	</tbody>
 </table>
 <div class = "page_navigation">
-	<tr>
 	{% if first_page_number %}
-	<button class="first_page" title="Go to first page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>First page</button>
+	<a class="first_page" title="Go to first page" href="{% url 'PMD:result_table' data_series %}?page={{ first_page_number }}">First page</a>
 	{% else %}
-	<button class="first_page" title="Go to first page" disabled="true">First page</button>
+	<a class="first_page" title="Go to first page">First page</a>
 	{% endif %}
 	{% if previous_page_number %}
-	<button class="previous_page" title="Go to previous page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>Previous page</button>
+	<a class="previous_page" title="Go to previous page" href="{% url 'PMD:result_table' data_series %}?page={{ previous_page_number }}">Previous page</a>
 	{% else %}
-	<button class="previous_page" title="Go to previous page" disabled="true">Previous page</button>
+	<a class="previous_page" title="Go to previous page">Previous page</a>
 	{% endif %}
 	<!-- Select all and none buttons -->
 	<button class="select_all" title="Select all">Select all</button>
 	<button class="unselect_all" title="Unselect all">Unselect all</button>
 	{% if next_page_number %}
-	<button class="next_page" title="Go to next page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>Next page</button>
+	<a class="next_page" title="Go to next page" href="{% url 'PMD:result_table' data_series %}?page={{ next_page_number }}">Next page</a>
 	{% else %}
-	<button class="next_page" title="Go to next page" disabled="true">Next page</button>
+	<a class="next_page" title="Go to next page">Next page</a>
 	{% endif %}
 	{% if last_page_number %}
-	<button class="last_page" title="Go to last page" params='{"url": "{% url 'PMD:result_table' data_series %}", "data_series": "{{ data_series }}", "page": {{ next_page_number}} }'>Last page</button>
+	<a class="last_page" title="Go to last page" href="{% url 'PMD:result_table' data_series %}?page={{ last_page_number }}">Last page</a>
 	{% else %}
-	<button class="last_page" title="Go to last page" disabled="true">Last page</button>
+	<a class="last_page" title="Go to last page">Last page</a>
 	{% endif %}
-	</tr>
 </div>
 
 {% elif message %}

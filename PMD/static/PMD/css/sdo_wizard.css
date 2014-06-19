@@ -7,26 +7,26 @@ body {
 
 li#user_tab {
 	/* Push user tab to the right */
-	float:right!important;
+	/* important avoid jquery to override it */
+	float: right !important;
 }
 
+/* Put the 2 panels side by side if possible */
 div.search_panel {
-	/* Put the 2 panels side by side if possible */
-	display: inline-block;
-	min-height:100%;
-	/*background: #BB66FF; */
+	/* Push the first panel to the left */
+	float: left;
 }
 
 div.result_panel {
-	/* Put the 2 panels side by side if possible */
-	display: inline-block;
-	min-height:100%;
-	/*background: #BBFFFF; */
+	/* Avoid this panel to be under the first panel */ 
+	overflow: hidden;
+	/* Specify a minimum width to force this panel to go under the first panel if the screen is too narow */
+	min-width: 20em;
 }
 
 /* Section elements */
 div.section {
-	margin: 1em 0em;
+	margin: 1em;
 }
 
 div.section_title {
@@ -92,9 +92,10 @@ div.page_navigation {
 
 button.select_all, button.unselect_all {
 	/* Make the buttons smaller */
-	padding-top: 0em;
-	padding-bottom: 0em;
-	font-size: small;
+	/* important avoid jquery to override it */
+	padding-top: 0em !important;
+	padding-bottom: 0em !important;
+	font-size: small !important;
 }
 
 a.first_page, a.previous_page, a.next_page, a.last_page, a.download_fits, a.preview_image {

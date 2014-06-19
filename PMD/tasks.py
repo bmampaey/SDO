@@ -441,6 +441,25 @@ def create_SDO_synoptic_tree(config):
 	start_date_config = GlobalConfig(name = config + "_start_date", value = start_date.isoformat(), python_type = "datetime", help_text = "Start date for create_SDO_synoptic_tree %s" % config)
 	start_date_config.save()
 
+# Django tasks
+@app.task
+def get_thumbnail(request):
+	return "/static/PMD/images/sun.png"
+	return "/home/benjmam/SDO/PMD/static/PMD/images/sun.png"
+
+@app.task
+def execute_export_data_request(request):
+	pass
+
+@app.task
+def execute_export_meta_data_request(request):
+	pass
+
+@app.task
+def execute_bring_online_request(request):
+	pass
+
+
 
 if __name__ == '__main__':
 	app.start()

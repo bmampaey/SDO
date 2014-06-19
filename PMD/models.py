@@ -425,7 +425,7 @@ class Request(models.Model):
 	# Not a good idea to overide the init method of models
 	@classmethod
 	def create_from_record(cls, record, priority = 0):
-		request = cls(data_series = DataSeries.objects.get(db_table = record._meta.db_table), sunum = record.sunum, slotnum = record.slotnum, segment = record.segment, recnum = record.recnum, priority = priority)
+		request = cls(data_series = DataSeries.objects.get(record_table = record._meta.db_table), sunum = record.sunum, slotnum = record.slotnum, segment = record.segment, recnum = record.recnum, priority = priority)
 		request.size = request.data_series.average_file_size
 		return request
 
