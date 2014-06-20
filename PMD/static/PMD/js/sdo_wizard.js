@@ -278,13 +278,13 @@ function load_events_handlers()
 
 	
 	// Transform the search form to do ajax request instead
-	$("form.search_form").submit(function(e){
+	$("form.data_search_form").submit(function(e){
 		e.preventDefault();
 		var form = $(e.target);
 		log("submit form action: ", form.attr("action"), "query: ", form.serialize());
 		var section_content = $("div.search_results div.section_content", form.closest("div.tab_content"));
 		load_result_table(section_content, form.attr("action") + "?" + form.serialize());
-	});
+	}).submit();
 
 	// Change helptext into buttons
 	$("span.helptext").replaceWith(function() {return '<button type="button" class="help" title="' + $(this).text() + '">Help</button>';});

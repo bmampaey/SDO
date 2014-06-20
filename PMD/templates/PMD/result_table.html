@@ -1,60 +1,60 @@
 {% if records %}
-<table class="result_table" summary="Search results">
-	<thead>
-		<tr>
-			<th></th><!-- preview column -->
-			<th></th><!-- download column -->
-			<th></th><!-- select column -->
-			{% for header in headers %}
-			<th>{{ header }}</th>
-			{% endfor %}
-		</tr>
-	</thead>
-	<tbody>
-		{% for record in records %}
-		<tr>
-			<td>
-				<a class="preview_image" title="Preview image" href="{% url 'PMD:thumbnail' data_series record.recnum %}">Preview</a>
-			</td>
-			<td>
-				<a class="download_fits" title="Download fits" href="{% url 'PMD:download' data_series record.recnum %}">Download</a>
-			</td>
-			<td>
-				<input type="checkbox" value="{{ record.recnum }}" name="recnum"></input>
-			</td>
-			{% for field in record.fields %}
-			<td>{{ field }}</td>
-			{% endfor %}
-		</tr>
-		{% endfor %}
-	</tbody>
-</table>
-<div class = "page_navigation">
-	{% if first_page_number %}
-	<a class="first_page" title="Go to first page" href="{% url 'PMD:result_table' data_series %}?page={{ first_page_number }}">First page</a>
-	{% else %}
-	<a class="first_page" title="Go to first page">First page</a>
-	{% endif %}
-	{% if previous_page_number %}
-	<a class="previous_page" title="Go to previous page" href="{% url 'PMD:result_table' data_series %}?page={{ previous_page_number }}">Previous page</a>
-	{% else %}
-	<a class="previous_page" title="Go to previous page">Previous page</a>
-	{% endif %}
-	<!-- Select all and none buttons -->
-	<button class="select_all" title="Select all">Select all</button>
-	<button class="unselect_all" title="Unselect all">Unselect all</button>
-	{% if next_page_number %}
-	<a class="next_page" title="Go to next page" href="{% url 'PMD:result_table' data_series %}?page={{ next_page_number }}">Next page</a>
-	{% else %}
-	<a class="next_page" title="Go to next page">Next page</a>
-	{% endif %}
-	{% if last_page_number %}
-	<a class="last_page" title="Go to last page" href="{% url 'PMD:result_table' data_series %}?page={{ last_page_number }}">Last page</a>
-	{% else %}
-	<a class="last_page" title="Go to last page">Last page</a>
-	{% endif %}
-</div>
 
+	<table class="result_table" summary="Search results">
+		<thead>
+			<tr>
+				<th></th><!-- preview column -->
+				<th></th><!-- download column -->
+				<th></th><!-- select column -->
+				{% for header in headers %}
+				<th>{{ header }}</th>
+				{% endfor %}
+			</tr>
+		</thead>
+		<tbody>
+			{% for record in records %}
+			<tr>
+				<td>
+					<a class="preview_image" title="{{ record.title }}" href="{% url 'PMD:thumbnail' data_series_name record.recnum %}">Preview</a>
+				</td>
+				<td>
+					<a class="download_fits" title="{{ record.title }}" href="{% url 'PMD:download' data_series_name record.recnum %}">Download</a>
+				</td>
+				<td>
+					<input type="checkbox" value="{{ record.recnum }}" name="recnum"></input>
+				</td>
+				{% for field in record.fields %}
+				<td>{{ field }}</td>
+				{% endfor %}
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	<div class = "page_navigation">
+		{% if first_page_number %}
+		<a class="first_page" title="Go to first page" href="{% url 'PMD:result_table' data_series_name %}?page={{ first_page_number }}">First page</a>
+		{% else %}
+		<a class="first_page" title="Go to first page">First page</a>
+		{% endif %}
+		{% if previous_page_number %}
+		<a class="previous_page" title="Go to previous page" href="{% url 'PMD:result_table' data_series_name %}?page={{ previous_page_number }}">Previous page</a>
+		{% else %}
+		<a class="previous_page" title="Go to previous page">Previous page</a>
+		{% endif %}
+		<!-- Select all and none buttons -->
+		<button class="select_all" title="Select all">Select all</button>
+		<button class="unselect_all" title="Unselect all">Unselect all</button>
+		{% if next_page_number %}
+		<a class="next_page" title="Go to next page" href="{% url 'PMD:result_table' data_series_name %}?page={{ next_page_number }}">Next page</a>
+		{% else %}
+		<a class="next_page" title="Go to next page">Next page</a>
+		{% endif %}
+		{% if last_page_number %}
+		<a class="last_page" title="Go to last page" href="{% url 'PMD:result_table' data_series_name %}?page={{ last_page_number }}">Last page</a>
+		{% else %}
+		<a class="last_page" title="Go to last page">Last page</a>
+		{% endif %}
+	</div>
 {% elif message %}
 <p>{{ message }}</p>
 {% else %}

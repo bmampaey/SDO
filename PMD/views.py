@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404, get_list_or_404
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseBadRequest, HttpResponseServerError, HttpResponseForbidden
+from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_safe, require_POST
 
@@ -15,18 +16,43 @@ data_series_forms = dict()
 for form in PMD.forms.__dict__.values():
 	try:
 		if form != PMD.forms.DataSeriesForm and issubclass(form, PMD.forms.DataSeriesForm):
-			data_series_forms[form.data_series] = form
+			data_series_forms[form.record_table] = form
 	except Exception:
 		pass
 
 print pprint.pformat(data_series_forms, depth=6)
 
+
 # Assert we only have get
 @require_safe
 def index(request):
-	time_range_form = PMD.forms.TimeRangeForm(label_suffix='')
-	return render(request, 'PMD/search_data.html', {'time_range_form': time_range_form, 'data_series_forms': [data_series_forms[name](label_suffix='') for name in sorted(data_series_forms.keys())]})
+	context = {
+		'time_range_form' : PMD.forms.TimeRangeForm(label_suffix=''),
+		'data_series_forms': [data_series_forms[name](label_suffix='') for name in sorted(data_series_forms.keys())],
+		'login_form': PMD.forms.LoginForm(label_suffix=''),
+	}
+	
+	return render(request, 'PMD/search_data.html', context)
 
+@require_POST
+def login(request):
+	form = PMD.forms.LoginForm(request.POST)
+	if not form.is_valid():
+		return HttpResponseBadRequest(str(form.errors))
+	if form.cleaned_data["username"] and form.cleaned_data["password"]:
+		user = authenticate(username=form.cleaned_data["username"], password=form.cleaned_data["password"])
+	elif form.cleaned_data["email"]:
+		pass
+	else:
+		return HttpResponse("You must provide a username an password or an email", content_type="text/plain", status=401)
+	if user is not None:
+		if user.is_active:
+			login(request, user)
+			# Redirect to a success page.
+		else:
+			return HttpResponse("Your account is disabled. Please contact the website administrator", content_type="text/plain", status=401)
+	else:
+		return HttpResponse("Invalid password", content_type="text/plain", status=401)
 
 # Assert we only have get
 @require_safe

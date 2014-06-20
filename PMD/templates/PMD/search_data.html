@@ -61,7 +61,7 @@
 	<!-- Tabs declaration -->
 	<ul>
 		{% for form in data_series_forms %}
-		<li><a href="#{{ form.data_series }}">{{ form.pretty_name }}</a></li>
+		<li><a href="#{{ form.data_series_name }}">{{ form.tab_name }}</a></li>
 		{% endfor %}
 		{% if user.is_authenticated %}
 		<li id="user_tab"><a href="#user"><span class="ui-icon ui-icon-person" style="display: inline-block"></span> {{ user.username }}</a></li>
@@ -72,24 +72,32 @@
 	
 	<!-- User Tab definition --> 
 	<div id="user">
-	{% if user.is_authenticated %}
-	<p>You are currently logged in as {{ user.username }} <button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></p>
-	{% else %}
-	<form>
-		<p>Some functionalities require an email address</p>
-		<p>or if you are part of the Royal Observatory of Belgium you can use your usual user/password to login</p>
-		<button type="submit" id="login" title="Log in the application">Login</button>
-	</form>
-	{% endif %}
+		{% if user.is_authenticated %}
+		<p>You are currently logged in as {{ user.username }} <button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></p>
+		{% else %}
+		<form id="login_form" action="{% url 'PMD:login' %}" method="post">
+			{% csrf_token %}
+			<p>
+				{{ login_form.email.label_tag }}
+				{{ login_form.email }}
+			</p>
+			<p>
+				{{ login_form.username.label_tag }}
+				{{ login_form.username }}
+				{{ login_form.password }}
+			</p>
+			<button type="submit" id="login" title="Log in the application">Login</button>
+		</form>
+		{% endif %}
 	</div>
 	
 	<!-- Data Series Tab definitions -->
 	{% for form in data_series_forms %}
-	<!-- {{ form.data_series }} tab content-->
-		<div id="{{ form.data_series }}" class="tab_content">
-			<!-- {{ form.data_series }} search form -->
+	<!-- {{ form.data_series_name }} tab content-->
+		<div id="{{ form.data_series_name }}" class="tab_content">
+			<!-- {{ form.data_series_name }} search form -->
 			<div class="search_panel">
-				<form class="search_form" action="{% url 'PMD:result_table' form.data_series %}" method="get">
+				<form class="data_search_form" action="{% url 'PMD:result_table' form.data_series_name %}" method="get">
 					<div class="section specific_search_criteria">
 						<div class="section_title">
 							Select search criteria
@@ -103,17 +111,14 @@
 					</div>
 				</form>
 			</div>
-			<!-- {{ form.data_series }} search results -->
+			<!-- {{ form.data_series_name }} search results -->
 			<div class="result_panel">
 				<div class="section search_results">
 					<div class="section_title">
 						Search results
 					</div>
 					<div class="section_content">
-						<p style="vertical-align: top">&#8679; 1. Select a data set here.</p>
-						<p style="vertical-align: middle">&#8678; 2. Enter your search criteria here.</p>
-						<p style="vertical-align: middle">&#8661; 3. The results will appear here. Select what you want.</p>
-						<p style="vertical-align: bottom">&#8681; 4. Use the buttons here.</p>
+						&#8592; Please make a search for data on the left.
 					</div>
 				</div>
 				<div class="actions result_actions">

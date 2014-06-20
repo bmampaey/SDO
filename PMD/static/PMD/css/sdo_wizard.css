@@ -1,27 +1,25 @@
 body {
 	padding: 1em 0.5em;
-/*	vertical-align: middle; */
 }
 
 /* Tab elements and content */
 
 li#user_tab {
 	/* Push user tab to the right */
-	/* important avoid jquery to override it */
+	/* important to avoid jquery to override it */
 	float: right !important;
 }
 
-/* Put the 2 panels side by side if possible */
 div.search_panel {
-	/* Push the first panel to the left */
-	float: left;
+	/* Put the 2 panels side by side if possible */
+	display: inline-block;
+	vertical-align: top; 
 }
 
 div.result_panel {
-	/* Avoid this panel to be under the first panel */ 
-	overflow: hidden;
-	/* Specify a minimum width to force this panel to go under the first panel if the screen is too narow */
-	min-width: 20em;
+	/* Put the 2 panels side by side if possible */
+	display: inline-block;
+	vertical-align: top;
 }
 
 /* Section elements */
@@ -42,16 +40,24 @@ div.actions {
 	text-align: center;
 }
 
-/* Form elements */
-p label {
+
+/* Login form elements */
+form#login_form label {
+	width: 25em;
+	display: inline-block;
+	margin: 0.5em;
+	text-align: right;
+	vertical-align: middle;
+}
+
+
+/* Data search form elements */
+form.data_search_form label {
 	width: 10em;
 	display: inline-block;
 	margin: 0.5em;
 	text-align: right;
-}
-
-input[type='text']{
-	height: 1em;
+	vertical-align: middle;
 }
 
 img.ui-datepicker-trigger {
@@ -63,7 +69,7 @@ select#id_cadence_multiplier{
 	margin: 0 0.3em;
 }
 
-select[multiple="multiple"] {
+form.data_search_form select[multiple] {
 	min-width: 4em;
 }
 
@@ -90,12 +96,11 @@ div.page_navigation {
 	margin: 1em 0em;
 }
 
-button.select_all, button.unselect_all {
-	/* Make the buttons smaller */
-	/* important avoid jquery to override it */
-	padding-top: 0em !important;
-	padding-bottom: 0em !important;
-	font-size: small !important;
+button.select_all>span.ui-button-text, button.unselect_all>span.ui-button-text {
+	/* Make the buttons narrower */
+	padding-top: 0em;
+	padding-bottom: 0em;
+	font-size: small;
 }
 
 a.first_page, a.previous_page, a.next_page, a.last_page, a.download_fits, a.preview_image {

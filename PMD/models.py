@@ -4,6 +4,7 @@ import dateutil.parser as date_parser
 
 from django.db import models
 from django.forms.models import model_to_dict
+from django.core.validators import RegexValidator
 
 from DRMS.models import DRMSDataSeries
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
@@ -91,11 +92,10 @@ class DataSite(models.Model):
 		return self.__data_location_model
 
 class DataSeries(models.Model):
-	drms_series = models.OneToOneField(DRMSDataSeries, help_text="DRMS data series name.", on_delete=models.DO_NOTHING, related_name='+', db_column = "drms_series_name", primary_key=True)
+	record_table = models.CharField(help_text = "PMD record table name for the data series.", max_length=20, primary_key=True, validators=[RegexValidator("\w+", "Can only contain letters, numbers and underscore.")])
+	drms_series = models.OneToOneField(DRMSDataSeries, help_text="DRMS data series name.", on_delete=models.DO_NOTHING, related_name='+', blank=False, null=False)
 	retention = models.PositiveIntegerField(help_text = "Default minimum number of days before deleting the data.", default=60, blank=True)
-	forced_datasite = models.ForeignKey(DataSite, help_text="Data site name to download the data from. Override the data site priority.", default=None, blank=True, null=True, on_delete=models.SET_NULL, db_column = "forced_datasite")
-	last_treated_recnum = models.IntegerField(help_text = "Last record number treated.", default=0, blank=True, null=True)
-	record_table = models.CharField(help_text = "PMD record table name for the data series.", max_length=20, blank=False, null=False)
+	forced_datasite = models.ForeignKey(DataSite, help_text="Data site name to download the data from. Override the data site priority.", default=None, blank=True, null=True, on_delete=models.SET_NULL)
 	
 	class Meta:
 		db_table = "data_series"
@@ -103,14 +103,14 @@ class DataSeries(models.Model):
 		verbose_name_plural = "Data series"
 	
 	def __unicode__(self):
-		return unicode(self.data_series)
+		return unicode(self.name)
 	
 	def default_expiration_date(self, date = datetime.utcnow()):
 		return date + timedelta(days = self.retention)
 	
 	@property
 	def name(self):
-		return self.drms_series.name
+		return self.record_table
 	
 	def __set_models(self):
 		import PMD.models as PMD_models
@@ -140,17 +140,17 @@ class DataSeries(models.Model):
 		# We must translate the attributes name to the real keyword name
 		if not hasattr(self, '__header_keywords'):
 			self.__set_header_keywords_units_comments()
-		values = model_to_dict(self.data_series.fits_header_model.objects.get(recnum=request.recnum))
+		values = model_to_dict(self.drms_series.fits_header_model.objects.get(recnum=request.recnum))
 		header_values = dict()
 		for attname, keyword in self.__header_keywords.iteritems():
 			header_values[keyword] = values[attname]
 		return header_values
 	
 	def __set_header_keywords_units_comments(self):
-		self.__header_keywords = dict([field.get_attname_column() for field in self.data_series.fits_header_model._meta.fields])
+		self.__header_keywords = dict([field.get_attname_column() for field in self.drms_series.fits_header_model._meta.fields])
 		self.__header_units = dict()
 		self.__header_comments = dict()
-		for fits_keyword in self.data_series.fits_keyword_model.objects.all():
+		for fits_keyword in self.drms_series.fits_keyword_model.objects.all():
 			self.__header_units[fits_keyword.keyword] = fits_keyword.unit
 			self.__header_comments[fits_keyword.keyword] = fits_keyword.comment
 		
