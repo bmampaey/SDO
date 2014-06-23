@@ -15,10 +15,10 @@
 			{% for record in records %}
 			<tr>
 				<td>
-					<a class="preview_image" title="{{ record.title }}" href="{% url 'PMD:thumbnail' data_series_name record.recnum %}">Preview</a>
+					<a class="preview_image" title="Preview file" img_title="{{ record.title }}" href="{% url 'PMD:preview' data_series_name record.recnum %}">Preview</a>
 				</td>
 				<td>
-					<a class="download_fits" title="{{ record.title }}" href="{% url 'PMD:download' data_series_name record.recnum %}">Download</a>
+					<a class="download_fits" title="Download file" href="{% url 'PMD:download' data_series_name record.recnum %}">Download</a>
 				</td>
 				<td>
 					<input type="checkbox" value="{{ record.recnum }}" name="recnum"></input>

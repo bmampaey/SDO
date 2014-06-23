@@ -24,6 +24,7 @@ class GlobalConfig(models.Model):
 	
 	class Meta:
 		db_table = "global_config"
+		ordering = ["name"]
 		verbose_name = "Global configuration variable"
 	
 	def __unicode__(self):
@@ -78,17 +79,19 @@ class DataSite(models.Model):
 	def __unicode__(self):
 		return unicode(self.name)
 	
+	def __set_models(self):
+		data_location_models = PMDDataLocation.__subclasses__() + DrmsDataLocation.__subclasses__()
+		for data_location_model in data_location_models:
+			if data_location_model._meta.db_table == self.data_location_table:
+				self.__data_location_model = data_location_model
+				break
+		else:
+			raise Exception("No data location model with table name %s" % self.data_location_table)
+	
 	@property
 	def data_location(self):
 		if not hasattr(self, '__data_location_model'):
-			import PMD.models as PMD_models
-			for model_name in dir(PMD_models):
-				try:
-					PMD_model = getattr(PMD_models, model_name)
-					if PMD_model._meta.db_table == self.data_location_table:
-						self.__data_location_model = PMD_model
-				except Exception:
-					pass
+			self.__set_models()
 		return self.__data_location_model
 
 class DataSeries(models.Model):
@@ -113,14 +116,11 @@ class DataSeries(models.Model):
 		return self.record_table
 	
 	def __set_models(self):
-		import PMD.models as PMD_models
-		for model_name in dir(PMD_models):
-			try:
-				PMD_model = getattr(PMD_models, model_name)
-				if PMD_model._meta.db_table == self.record_table:
-					self.__record_model = PMD_model
-			except Exception:
-				pass
+		data_series_record_models = PmdRecord.sub_models()
+		if self.record_table in data_series_record_models:
+			self.__record_model = data_series_record_models[self.record_table]
+		else:
+			raise Exception("No record model with table name %s" % self.record_table)
 	
 	@property
 	def record(self):
@@ -228,7 +228,7 @@ class LocalDataLocation(PMDDataLocation):
 	
 	@classmethod
 	def create_location(cls, request):
-		cache = GlobalConfig.get("cache")
+		cache = GlobalConfig.get("data_cache")
 		path = os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment))
 		cls.save_path(request, path)
 		return path
@@ -318,8 +318,12 @@ class PmdRecord(models.Model):
 	
 	class Meta:
 		abstract = True
+	
+	@classmethod
+	def sub_models(cls):
+		return dict([(model._meta.db_table, model) for model in cls.__subclasses__()])
 
-class AiaLev1(PmdRecord):
+class AiaLev1Record(PmdRecord):
 	wavelnth = models.FloatField(blank=True, null=True)
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
@@ -340,11 +344,10 @@ class AiaLev1(PmdRecord):
 		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
 		
 	def filename(self):
-		return "AIA.%s.%04d.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.wavelenth, self.segment)
+		return "AIA.%s.%04d.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.wavelnth, self.segment)
 
 
-class HmiIc45S(PmdRecord):
-	wavelnth = models.FloatField(blank=True, null=True)
+class HmiIc45SRecord(PmdRecord):
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
 	camera = models.IntegerField(blank=True, null=True)
@@ -367,8 +370,7 @@ class HmiIc45S(PmdRecord):
 		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
 
 
-class HmiM45S(PmdRecord):
-	wavelnth = models.FloatField(blank=True, null=True)
+class HmiM45SRecord(PmdRecord):
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
 	camera = models.IntegerField(blank=True, null=True)

@@ -10,8 +10,8 @@
 		<script src="{% static "PMD/js/iso8601.js" %}" type="text/javascript"></script>
 		<script src="{% static "PMD/js/fix_ie.js" %}" type="text/javascript"></script>
 		<!-- Include jquery libraries and plugins -->
-		<script src="{% static "PMD/js/jquery-1.10.2.js" %}" type="text/javascript"></script>
-		<script src="{% static "PMD/js/jquery-ui-1.10.4.min.js" %}" type="text/javascript"></script>
+		<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+		<script src="//code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
 		<script src="{% static "PMD/js/jquery-ui-timepicker-addon.js" %}" type="text/javascript"></script>
 		<script src="{% static "PMD/js/jquery.cookie.js" %}" type="text/javascript"></script>
 		<script src="{% static "PMD/js/json.js" %}" type="text/javascript"></script>
@@ -20,6 +20,12 @@
 		<!-- Include application javascripts -->
 		<script src="{% static "PMD/js/sdo_wizard.js" %}" type="text/javascript"></script>
 		
+		<!-- Javascript constants -->
+		<script type="text/javascript" charset="utf-8">
+			CALENDAR_IMAGE_URL = "{% static 'PMD/images/calendar.png' %}";
+			LOADING_IMAGE_URL = "{% static 'PMD/images/loading.gif' %}";
+		</script>
+		
 		<!-- Include stylesheets -->
 		<link rel="stylesheet" href="{% static "PMD/css/reset.css" %}" type="text/css">
 		<link rel="stylesheet" href="{% static "PMD/css/jquery-ui-1.8.16.custom.css" %}" type="text/css">
@@ -27,140 +33,123 @@
 	</head>
 <body>
 
-<!-- Username and logout link --> 
-<div id="user_id">	
-<p>You are logged in as {{ user.username }} <a href="{% url 'accounts:django.contrib.auth.views.logout' %}?next=/PMD/">Logout</a></p>
-</div>
-
-<!-- form for time range 
-		It is outside of the tabs, but will be moved inside the current tab by jquery, so dates remain
--->
-<div class="form_section" id="time_range">
-	<p class="form_section_title">
-		Select time range
-	</p>
-	<div class="search_criteria">
-		<div class="search_criteria">
-			<div class="search_criteria_label">
-				Start time
-			</div>
-			<div class="search_criteria_inputs">
-				<input type="text" name="start_date" id="start_date" size="18" title="Select start date and time" />
-				<input type="image" id="start_date_picker" class="date_picker" title="Click to open date picker" src="{% static "PMD/css/images/calendar.png" %}"></input>
-			</div>
-		</div>
-		<div class="search_criteria">
-			<div class="search_criteria_label">
-				End time
-			</div>
-			<div class="search_criteria_inputs">
-				<input type="text" name="end_date" id="end_date" size="18" title="Select end date and time" >
-				<input type="image" id="end_date_picker" class="date_picker" title="Click to open date picker" src="{% static "PMD/css/images/calendar.png" %}"></input>
-			</div>
-		</div>
-		<div class="search_criteria">
-			<div class="search_criteria_label">
-				Data cadence
-			</div>
-			<div class="search_criteria_inputs">
-				<input type="text" id="cadence" name="cadence" maxlength="4" size="4">
-				<select id="cadence_unit" name="cadence_unit">
-					<option value="s">second(s)</option>
-					<option value="m">minute(s)</option>
-					<option value="h" selected="true">hour(s)</option>
-					<option value="d">day(s)</option>
-				</select>
-			</div>
-		</div>
+<!-- Form for time range. It is outside of the tabs, but will be moved inside the current tab by jquery, so dates remain when moving between tabs -->
+<div class="section" id="time_range">
+	<div class="section_title">
+		Select time range and optional cadence
+	</div>
+	<div class="section_content">
+		<p> <!-- start date -->
+			{{ time_range_form.start_date.label_tag }}
+			{{ time_range_form.start_date }}
+		</p>
+		
+		<p> <!-- end date -->
+			{{ time_range_form.end_date.label_tag }}
+			{{ time_range_form.end_date }}
+		</p>
+		
+		<p> <!-- cadence -->
+			{{ time_range_form.cadence.label_tag }}
+			{{ time_range_form.cadence }}
+			{{ time_range_form.cadence_multiplier }}
+		</p>
 	</div>
 </div>
 
 <div id="tabs">
 	<!-- Tabs declaration -->
 	<ul>
-		{% for data_series in data_series_list %}
-			<li><a href="#tab_{{ data_series.record_table }}">{{ data_series.name }}</a></li>
+		{% for form in data_series_search_forms %}
+		<li><a href="#{{ form.data_series_name }}">{{ form.tab_name }}</a></li>
 		{% endfor %}
+		{% if user.is_authenticated %}
+		<li id="user_tab"><a href="#user"><span class="ui-icon ui-icon-person" style="display: inline-block"></span> {{ user.username }}</a></li>
+		{% else %}
+		<li id="user_tab"><a href="#user"><span class="ui-icon ui-icon-person" style="display: inline-block"></span> Log in</a></li>
+		{% endif %}
 	</ul>
-	<!-- Tabs definition -->
-	{% for data_series in data_series_list %}
-		<!-- {{ data_series.name }} tab content-->
-		<div id="tab_{{ data_series.record_table }}" class="tab_content">
-			<div class="form_section specific_criteria">
-				<p class="form_section_title">
-					Select search criteria
-				</p>
-				<input type="hidden" class="series_name" name="series_name" value="{{ data_series.data_series }}"/>
-				<input type="hidden" name="search_limit" value="10000"/>
-				<!-- Quality criteria -->
-				<div class="search_criteria">
-					<div class="search_criteria_label">
-						<button class="help" title="Search results will only display data for which the quality is 0">Help</button>
-						Best quality only
+	
+	<!-- User Tab definition --> 
+	<div id="user">
+		{% if user.is_authenticated %}
+		<p>You are currently logged in as {{ user.username }} <button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></p>
+		{% else %}
+		<form id="login_form" action="{% url 'PMD:login' %}" method="post">
+			{% csrf_token %}
+			<p>
+				{{ login_form.email.label_tag }}
+				{{ login_form.email }}
+			</p>
+			<p>
+				{{ login_form.username.label_tag }}
+				{{ login_form.username }}
+				{{ login_form.password }}
+			</p>
+			<div class="actions">
+			<button type="submit" id="login" title="Log in the application">Login</button>
+			</div>
+		</form>
+		{% endif %}
+	</div>
+	
+	<!-- Data Series Tab definitions -->
+	{% for form in data_series_search_forms %}
+	<!-- {{ form.data_series_name }} tab content-->
+		<div id="{{ form.data_series_name }}" class="tab_content">
+			<!-- {{ form.data_series_name }} search form -->
+			<div class="search_panel">
+				<form class="data_search_form" action="{% url 'PMD:result_table' form.data_series_name %}" method="get">
+					<div class="section specific_search_criteria">
+						<div class="section_title">
+							Select search criteria
+						</div>
+							<div class="section_content">
+							{{ form.as_p }}
+							</div>
+							<div class="actions search_actions">
+								<button type="submit" class="search_data" title="Search data">Search data</button>
+							</div>
 					</div>
-					<div class="search_criteria_inputs">
-						<label><input type="checkbox" name="best_quality" value="true" checked="true"/></label>
+				</form>
+			</div>
+			<!-- {{ form.data_series_name }} search results -->
+			<div class="result_panel">
+				<div class="section result_section">
+					<div class="section_title">
+						<span class="ui-icon visual_indicator"></span>
+						Search results
+					</div>
+					<div class="section_content">
+						&#8592; Please make a search for data on the left.
+					</div>
+					<div class="actions result_actions">
+						<form action="{% url 'PMD:download_bundle' form.data_series_name %}" method="post">
+							{% csrf_token %}
+							<button class="download_bundle" title="Download the selected data as a zip file">Download data</button>
+						</form>
+						<form action="{% url 'PMD:export_data' form.data_series_name %}" method="post">
+							{% csrf_token %}
+							<button class="export_data" title="Export the selected data for download">Export data</button>
+						</form>
+						<form action="{% url 'PMD:export_keywords' form.data_series_name %}" method="post">
+							{% csrf_token %}
+							<button class="export_keywords" title="Export the selected meta-data to a csv file">Export keywords</button>
+						</form>
+						<form action="{% url 'PMD:bring_online' form.data_series_name %}" method="post">
+							{% csrf_token %}
+							<button class="bring_online" title="Bring data online at ROB">Bring online</button>
+						</form>
+						<form action="{% url 'PMD:export_cutout' form.data_series_name %}" method="post">
+							{% csrf_token %}
+							<button class="export_cutout" title="Download a cutout of the selected data">Export cutout</button>
+						</form>
 					</div>
 				</div>
-				<!-- For aia.lev1 we add wavelenth checkboxes -->
-				{% if data_series.name == "aia.lev1" %}
-					<div class="search_criteria">
-						<div class="search_criteria_label">
-							Wavelengths
-						</div>
-						<div class="search_criteria_inputs">
-							<label><input type="checkbox" name="wavelnth[]" value="94" checked="true"/>094&Aring;</label> 
-							<label><input type="checkbox" name="wavelnth[]" value="131" checked="true"/>131&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="171" checked="true"/>171&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="193" checked="true"/>193&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="211" checked="true"/>211&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="304" checked="true"/>304&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="335" checked="true"/>335&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="1600" checked="true"/>1600&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="1700" checked="true"/>1700&Aring;</label>
-							<label><input type="checkbox" name="wavelnth[]" value="4500" checked="true"/>4500&Aring;</label>
-						</div>
-					</div>
-				{% endif %}
-			</div>
-			<!-- First row of action -->
-			<div class="actions search_actions">
-				<p class="search_message">
-				</p>
-				<button class="search_data" title="Submit your search request" onclick="search_data();">Search data</button>
-			</div>
-			<!-- Tables of search results -->
-			<div class="search_results" style="display:none;">
-				<!-- At the beginning the table is empty -->
-				<table class="search_results_table fixedheader" summary="Search results">
-					<thead><tr></tr></thead>
-					<tbody></tbody>
-				</table>
-				<div>
-					<button class="select_all select_operation" title="Click to select all results" onclick="select_all('select')" >Select all</button>
-					<button class="unselect_all select_operation" title="Click to unselect all results" onclick="select_all('unselect')" >Unselect all</button>
-				</div>
-			</div>
-		
-			<!-- Second row of action -->
-			<div class="actions results_actions" style="display:none;">
-				<p class="results_message">
-				</p>
-				<button class="bring_online" title="Bring data online at ROB" onclick="bring_online();">Bring online</button>
 			</div>
 		</div>
 	{% endfor %}
 </div>
 
 
-<div id="ask_retention_period" class="dialog_box ui-state-highlight" title="Retention period" style="display:none;">
-	<div id="retention_period" class="input_label">
-		<p>Please enter a retention period:</p>
-		<input type="text" size="4"> months
-	</div>
-	<div id="warn_set_retention_success" class="input_label">
-		<input type="checkbox" checked="true"> Check if you want to be warned if the request has been successful
-	</div>
-</div>
 
-</body></html>

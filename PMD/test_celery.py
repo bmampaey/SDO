@@ -1,6 +1,5 @@
 from PMD.models import *
-from PMD.request import *
-from PMD.celery_tasks import *
+from PMD.tasks import *
 meta_data = AiaLev1.objects.all()[1]
 request = DataDownloadRequest.create_from_record(meta_data)
 request.data_site = DataSite.objects.get(name = "JSOC")

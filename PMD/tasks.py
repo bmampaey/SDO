@@ -42,13 +42,13 @@ from PMD.celery_tasks.SftpDownloader import SftpDownloader
 from PMD.celery_tasks.HttpDownloader import HttpDownloader
 from PMD.celery_tasks.DrmsDataLocator import DrmsDataLocator
 from PMD.routines.update_fits_header import update_fits_header
+from PMD.routines.create_png import create_png
 
 # TODO: if data download fails because location is incorrect allow for a get_data_location and a new essay to download the file
 # Create Data - Execute a DataDownloadRequest
 @app.task
 def download_data(request):
 	log.debug("download_data %s", request)
-	
 	# Get the local path where to download the file to
 	request.local_file_path = LocalDataLocation.create_location(request)
 	
@@ -71,6 +71,7 @@ def download_data(request):
 			# We call the specific data site downloader
 			data_downloaders[request.data_site.name](request)
 			break
+			# TODO if data download fail because of wrong data location retry
 	
 	update_file_meta_data(request)
 
@@ -84,6 +85,12 @@ def get_data(request):
 	except Exception:
 		download_data(request)
 		file_path = get_file_path(request, local_data_site = True)
+	else:
+		# TODO if file exists but have a higher retention date then increase
+		if not check_file_exists(file_path):
+			download_data(request)
+			file_path = get_file_path(request, local_data_site = True)
+	
 	return file_path
 
 # Update Data - Execute a MetaDataUpdateRequest
@@ -189,7 +196,7 @@ def delete_file(file_path):
 			raise
 
 def check_file_exists(file_path):
-	log.debug("check_file_exists %s", request)
+	log.debug("check_file_exists %s", file_path)
 	return os.path.exists(file_path)
 
 def get_hard_link_count(file_path):
@@ -443,9 +450,21 @@ def create_SDO_synoptic_tree(config):
 
 # Django tasks
 @app.task
-def get_thumbnail(request):
-	return "/static/PMD/images/sun.png"
-	return "/home/benjmam/SDO/PMD/static/PMD/images/sun.png"
+def get_preview(request):
+	# Check if the previews already exists 
+	cache = GlobalConfig.get("preview_cache")
+	image_path = os.path.splitext(os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment)))[0] + ".png"
+	if os.path.exists(image_path):
+		return image_path
+	
+	# Get the fits file
+	fits_path = get_data(request)
+	
+	# Create the preview
+	fits2png = GlobalConfig.get("fits2png_path", "fits2png.x")
+	create_png(fits_path, image_path, {"upperLabel" : "", "color": "true", "size": "512x512"}, fits2png)
+	
+	return image_path
 
 @app.task
 def execute_export_data_request(request):

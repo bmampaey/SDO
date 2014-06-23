@@ -88,3 +88,11 @@ SHORT_DATETIME_FORMAT = DATETIME_FORMAT = 'Y-m-d H:i:s'
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 
 STATIC_URL = '/static/'
+
+STATICFILES_DIRS = (
+	os.path.join(BASE_DIR, "static"),
+)
+
+MEDIA_URL = '/tmp/sdo_cache/'
+
+MEDIA_ROOT = '/tmp/sdo_cache'

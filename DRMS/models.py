@@ -25,16 +25,18 @@ class DRMSDataSeries(models.Model):
 		return unicode(self.name)
 	
 	def __set_models(self):
-		import DRMS.models as DRMS_models
-		for model_name in dir(DRMS_models):
-			try:
-				DRMS_model = getattr(DRMS_models, model_name)
-				if DRMS_model._meta.db_table == self.fits_header_view:
-					self.__fits_header_model = DRMS_model
-				elif DRMS_model._meta.db_table == self.fits_keyword_view:
-					self.__fits_keyword_model = DRMS_model
-			except Exception:
-				pass
+		
+		fits_header_models = FitsHeader.sub_models()
+		if self.fits_header_view in fits_header_models:
+			self.__fits_header_model = fits_header_models[self.fits_header_view]
+		else:
+			raise Exception("No fits header model with view name %s" % self.fits_header_view)
+		
+		fits_keyword_models = FitsKeyword.sub_models()
+		if self.fits_keyword_view in fits_keyword_models:
+			self.__fits_keyword_model = fits_keyword_models[self.fits_keyword_view]
+		else:
+			raise Exception("No fits keyword model with view name %s" % self.fits_keyword_view)
 	
 	@property
 	def fits_header_model(self):
@@ -48,8 +50,36 @@ class DRMSDataSeries(models.Model):
 			self.__set_models()
 		return self.__fits_keyword_model
 
-# Field names are lowercase.
-class AiaLev1FitsHeader(models.Model):
+class FitsHeader(models.Model):
+	
+	class Meta:
+		abstract = True
+		get_latest_by = 'date_obs'
+	
+	def __unicode__(self):
+		return unicode(self.recnum)
+	
+	@classmethod
+	def sub_models(cls):
+		return dict([(model._meta.db_table, model) for model in cls.__subclasses__()])
+
+class FitsKeyword(models.Model):
+	
+	class Meta:
+		abstract = True
+	
+	def __unicode__(self):
+		return unicode(self.keyword)
+	
+	@classmethod
+	def sub_models(cls):
+		return dict([(model._meta.db_table, model) for model in cls.__subclasses__()])
+
+
+# Following models are automaticaly generated using the inspectdb command of manage.py
+# See https://docs.djangoproject.com/en/1.6/howto/legacy-databases/
+
+class AiaLev1FitsHeader(FitsHeader):
 	bld_vers = models.TextField(db_column='BLD_VERS', blank=True)
 	lvl_num = models.FloatField(db_column='LVL_NUM', blank=True, null=True)
 	t_rec = models.DateTimeField(db_column='T_REC', blank=True, null=True)
@@ -230,27 +260,22 @@ class AiaLev1FitsHeader(models.Model):
 	sunum = models.BigIntegerField(db_column='SUNUM', blank=True, null=True)
 	slotnum = models.IntegerField(db_column='SLOTNUM', blank=True, null=True)
 	segment = models.TextField(db_column='SEGMENT', blank=True)
+	
 	class Meta:
 		managed = False
 		db_table = 'aia_lev1_fits_header'
-		get_latest_by = 'date_obs'
-	
-	def __unicode__(self):
-		return unicode(self.recnum)
 
 
-class AiaLev1FitsKeyword(models.Model):
+class AiaLev1FitsKeyword(FitsKeyword):
 	keyword = models.TextField(blank=False, primary_key = True)
 	unit = models.TextField(blank=True)
 	comment = models.TextField(blank=True)
+	
 	class Meta:
 		managed = False
 		db_table = 'aia_lev1_fits_keyword'
-	
-	def __unicode__(self):
-		return unicode(self.keyword)
 
-class HmiIc45sFitsHeader(models.Model):
+class HmiIc45sFitsHeader(FitsHeader):
 	date = models.DateTimeField(db_column='DATE', blank=True, null=True)
 	date_obs = models.DateTimeField(db_column='DATE-OBS', blank=True, null=True)
 	telescop = models.TextField(db_column='TELESCOP', blank=True)
@@ -339,26 +364,22 @@ class HmiIc45sFitsHeader(models.Model):
 	sunum = models.BigIntegerField(db_column='SUNUM', blank=True, null=True)
 	slotnum = models.IntegerField(db_column='SLOTNUM', blank=True, null=True)
 	segment = models.TextField(db_column='SEGMENT', blank=True)
+	
 	class Meta:
 		managed = False
 		db_table = 'hmi_ic_45s_fits_header'
-		get_latest_by = 'date_obs'
-	
-	def __unicode__(self):
-		return unicode(self.recnum)
 
-class HmiIc45sFitsKeyword(models.Model):
+
+class HmiIc45sFitsKeyword(FitsKeyword):
 	keyword = models.TextField(blank=False, primary_key = True)
 	unit = models.TextField(blank=True)
 	comment = models.TextField(blank=True)
+	
 	class Meta:
 		managed = False
 		db_table = 'hmi_ic_45s_fits_keyword'
-	
-	def __unicode__(self):
-		return unicode(self.keyword)
 
-class HmiM45sFitsHeader(models.Model):
+class HmiM45sFitsHeader(FitsHeader):
 	date = models.DateTimeField(db_column='DATE', blank=True, null=True)
 	date_obs = models.DateTimeField(db_column='DATE-OBS', blank=True, null=True)
 	telescop = models.TextField(db_column='TELESCOP', blank=True)
@@ -447,21 +468,17 @@ class HmiM45sFitsHeader(models.Model):
 	sunum = models.BigIntegerField(db_column='SUNUM', blank=True, null=True)
 	slotnum = models.IntegerField(db_column='SLOTNUM', blank=True, null=True)
 	segment = models.TextField(db_column='SEGMENT', blank=True)
+	
 	class Meta:
 		managed = False
 		db_table = 'hmi_m_45s_fits_header'
-		get_latest_by = 'date_obs'
-	
-	def __unicode__(self):
-		return unicode(self.recnum)
 
-class HmiM45sFitsKeyword(models.Model):
+
+class HmiM45sFitsKeyword(FitsKeyword):
 	keyword = models.TextField(blank=False, primary_key = True)
 	unit = models.TextField(blank=True)
 	comment = models.TextField(blank=True)
+	
 	class Meta:
 		managed = False
 		db_table = 'hmi_m_45s_fits_keyword'
-	
-	def __unicode__(self):
-		return unicode(self.keyword)

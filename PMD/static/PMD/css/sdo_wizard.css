@@ -1,3 +1,5 @@
+/* TODO Try to center thr panels */
+
 body {
 	padding: 1em 0.5em;
 }
@@ -10,10 +12,11 @@ li#user_tab {
 	float: right !important;
 }
 
+
 div.search_panel {
 	/* Put the 2 panels side by side if possible */
 	display: inline-block;
-	vertical-align: top; 
+	vertical-align: top;
 }
 
 div.result_panel {
@@ -21,6 +24,7 @@ div.result_panel {
 	display: inline-block;
 	vertical-align: top;
 }
+
 
 /* Section elements */
 div.section {
@@ -36,28 +40,32 @@ div.section_content {
 }
 
 div.actions {
-	margin: 1em 0em;
 	text-align: center;
+	padding: 0.5em 0;
 }
 
 
-/* Login form elements */
+/* Forms */
+
+form p * {
+	vertical-align: middle;
+}
+
+/* Login forms elements */
 form#login_form label {
 	width: 25em;
 	display: inline-block;
 	margin: 0.5em;
 	text-align: right;
-	vertical-align: middle;
 }
 
 
-/* Data search form elements */
+/* Data search forms elements */
 form.data_search_form label {
 	width: 10em;
 	display: inline-block;
 	margin: 0.5em;
 	text-align: right;
-	vertical-align: middle;
 }
 
 img.ui-datepicker-trigger {
@@ -73,6 +81,11 @@ form.data_search_form select[multiple] {
 	min-width: 4em;
 }
 
+/* Result actions forms */
+
+div.result_actions form{
+ display: inline;
+}
 
 /* Table results */
 
@@ -107,17 +120,16 @@ a.first_page, a.previous_page, a.next_page, a.last_page, a.download_fits, a.prev
 	/* Make the buttons tiny squares */
 	height: 1em;
 	width: 1em;
-	vertical-align: middle;
 }
 
-a.first_page, a.previous_page {
+a.previous_page {
 	/* Push buttons to the left */
-	float: left	;
+	margin-right: 1em;
 }
 
-a.next_page, a.last_page {
+a.next_page {
 	/* Push buttons to the right */
-	float: right;
+	margin-left: 1em;
 }
 
 /* Icon buttons */
@@ -127,6 +139,8 @@ button.help {
 	vertical-align: middle;
 }
 
+/* Dialog boxes */
+/*
 div.dialog_box label {
 	margin-top: 0.5em;
 	display: block;
@@ -138,6 +152,28 @@ p.search_message {
 	min-height: 3em;
 	padding: 0.4em 1em;
 	margin: 1em 0;
+}
+
+*/
+
+div.preview_image {
+	text-align: center;
+}
+
+div.preview_image > img {
+	height: 512px;
+	width: 512px;
+}
+
+/* Create a loading button icon float: left;*/
+/* important to avoid jquery to override it */
+.ui-icon-loading { background-image: url(images/loading.gif) !important; }
+
+/* Visual indicator */
+span.visual_indicator {
+	margin-right: 0.3em;
+	display: inline-block;
+	overflow: hidden;
 }
 
 
