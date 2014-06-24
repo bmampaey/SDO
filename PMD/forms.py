@@ -29,7 +29,7 @@ class TimeRangeForm(forms.Form):
 	])
 	
 	@classmethod
-	def defaults(cls):
+	def initials(cls):
 		data = dict()
 		for name, field in cls.base_fields.iteritems():
 			data[name] = field.initial
@@ -95,7 +95,7 @@ class DataSeriesSearchForm(forms.Form):
 		return dict([(form.record_table, form) for form in cls.__subclasses__()])
 	
 	@classmethod
-	def defaults(cls):
+	def initials(cls):
 		data = dict()
 		for name, field in cls.base_fields.iteritems():
 			data[name] = field.initial
@@ -123,10 +123,60 @@ class AiaLev1SearchForm(DataSeriesSearchForm):
 		(4500, '4500Å')
 	])
 	
+	
+	@classmethod
+	def get_paginator(cls, request_data, request_session):
+		
+		# Parse the request data
+		form = cls(request_data)
+		if not form.is_valid():
+			raise Exception(str(form.errors))
+		
+		query_parameters = cls.initials()
+		query_parameters.update(request_session)
+		query_parameters.update(form.cleaned_data)
+		query_parameters.update(TimeRangeForm.get_time_range(request_data, request_session))
+		
+		# For each field we try to get the values from the form else from the session else from the initials value
+		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
+			request_session['best_quality'] = cleaned_data['best_quality']
+		elif 'best_quality' not in request_session:
+			request_session['best_quality'] = cls.base_fields['best_quality'].initial
+		
+		if 'wavelengths' in cleaned_data and cleaned_data['wavelengths']:
+			request_session['wavelengths'] = cleaned_data['wavelengths']
+		elif 'wavelengths' not in request_session:
+			request_session['wavelengths'] = cls.base_fields['wavelengths'].initial
+		
+		# Parse the time range
+		start_date, end_date, cadence = TimeRangeForm.get_time_range(request_data, request_session)
+		
+		# Make the QuerySet
+		query_set = DataSeries.objects.get(record_table = cls.record_table).record.objects.filter()
+		
+		if request_session['best_quality']:
+			query_set = query_set.filter(quality=0)
+		
+		query_set = query_set.filter(wavelnth__in=request_session['wavelengths'])
+		#import pdb; pdb.set_trace()
+		# When cadence is specified we need a custom implementation
+		# But only if cadence is larger than 12s as this is the minimal cadence for AIA
+		if cadence and cadence > 12:
+			raise Exception("Not yet implemented")
+		
+		else:
+			if start_date:
+				query_set = query_set.filter(date_obs__gte = start_date)
+			
+			if end_date:
+				query_set = query_set.filter(date_obs__lt = end_date)
+			
+			return EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
+
 	@classmethod
 	def get_result_table(cls, request_data, request_session, page = None):
 		"""Return a dict with all the necessary info to create a table of results"""
-		#import pdb; pdb.set_trace()
+		
 		# Table to be returned
 		table = {
 			'headers' : ["Date", "Wavelength", "Quality"],
@@ -143,8 +193,8 @@ class AiaLev1SearchForm(DataSeriesSearchForm):
 		form = cls(request_data)
 		if not form.is_valid():
 			raise Exception(str(form.errors))
-		
-		cleaned_data = form.cleaned_data
+		else:
+			cleaned_data = form.cleaned_data
 		
 		# For each field we try to get the values from the form else from the session else from the initials value
 		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
@@ -181,7 +231,7 @@ class AiaLev1SearchForm(DataSeriesSearchForm):
 				query_set = query_set.filter(date_obs__lt = end_date)
 			
 			# We make the paginator and get the records
-			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False)
+			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
 			try:
 				page = paginator.page(page)
 			except PageNotAnInteger:
@@ -232,8 +282,8 @@ class HmiM45SSearchForm(DataSeriesSearchForm):
 		form = cls(request_data)
 		if not form.is_valid():
 			raise Exception(str(form.errors))
-		
-		cleaned_data = form.cleaned_data
+		else:
+			cleaned_data = form.cleaned_data
 		
 		# For each field we try to get the values from the form else from the session else from the initials value
 		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
@@ -263,7 +313,7 @@ class HmiM45SSearchForm(DataSeriesSearchForm):
 				query_set = query_set.filter(date_obs__lt = end_date)
 			
 			# We make the paginator and get the records
-			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False)
+			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
 			try:
 				page = paginator.page(page)
 			except PageNotAnInteger:
@@ -313,8 +363,8 @@ class HmiIc45SSearchForm(DataSeriesSearchForm):
 		form = cls(request_data)
 		if not form.is_valid():
 			raise Exception(str(form.errors))
-		
-		cleaned_data = form.cleaned_data
+		else:
+			cleaned_data = form.cleaned_data
 		
 		# For each field we try to get the values from the form else from the session else from the initials value
 		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
@@ -345,7 +395,7 @@ class HmiIc45SSearchForm(DataSeriesSearchForm):
 				query_set = query_set.filter(date_obs__lt = end_date)
 			
 			# We make the paginator and get the records
-			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False)
+			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
 			try:
 				page = paginator.page(page)
 			except PageNotAnInteger:

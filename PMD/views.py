@@ -31,6 +31,7 @@ def result_table(request, data_series_name):
 	request_session = request.session[data_series_name]
 	
 	# Get the result table
+	data_series_search_forms = DataSeriesSearchForm.sub_forms()
 	if data_series_name in data_series_search_forms:
 		try:
 			result_table = data_series_search_forms[data_series_name].get_result_table(request.GET, request_session, request.GET.get('page', 1))

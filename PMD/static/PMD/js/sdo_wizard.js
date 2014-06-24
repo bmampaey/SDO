@@ -6,6 +6,7 @@ Improve the download
 // Global variables
 debug = true;
 selections = {};
+latest_search_request = {};
 
 // Set implementation
 var Set = function() {};
@@ -117,52 +118,61 @@ function unselect_all(table)
 	selections[data_series_name].selected = new Set();
 }
 
-function execute_result_action(action_url, data)
-{
-	log("execute_result_action url: ", action_url, "data: ", $.param(data));
-	$.post(action_url, data)
-	.done(function(response){
-		log("execute_result_action SUCCEEDED response: ", response);
-		inform_user(response);
-	})
-	.fail(function(response){
-		log("execute_result_action FAILED response: ", response);
-		alert_user(response);
-	});
-}
 
-function load_result_table(result_section, table_url, search_id)
+function load_result_table(result_section, table_url)
 {
 	// Make an ajax request to table_url and load the result to result_section
-	// But 
-	log("load_result_table url: ", table_url, "search_id: ", search_id);
-	
-	// Save the search_id, so the result table will be loaded only if the table's search_id matches the saved search_id
-	// If the users make a new search before the current one has been loaded, the result table of the first one will be discarded
 	var data_series_name = get_data_series_name(result_section);
-	saved_search_id[data_series_name] = search_id;
-
-	$.get(table_url, {"search_id" : search_id})
-	.done(function(response){
-		log("load_result_table SUCCEEDED for search_id: ", search_id);
-		table = $(response);
-		log("Result table search_id: ", table.attr("search_id"), "saved search_id: ", saved_search_id[data_series_name]);
-		if(table.attr("search_id") == search_id)
+	log("load_result_table url: ", table_url, "data_series_name: ", data_series_name);
+	
+	// Abort the last search request in case it is still running
+	if(latest_search_request[data_series_name] !== undefined)
+	{
+		log("Aborting latest search request: ", latest_search_request[data_series_name].uid);
+		latest_search_request[data_series_name].abort();
+		latest_search_request[data_series_name] = undefined;
+	}
+	
+	// Make the request and save it
+	var request = latest_search_request[data_series_name] = $.get(table_url);
+	
+	// For clearer login
+	request.uid = data_series_name + " - " +(new Date()).toJSON();
+	
+	// Success
+	request.done(function(response){
+		log("load_result_table SUCCEEDED for request: ", request.uid);
+		
+		// If the request that is "done" is not the latest one, the result section will not be updated with the received result table
+		if(latest_search_request[data_series_name] == request)
 		{
-			$("div.section_content", result_section).replaceWith(table);
+			log("Updating result section for data series: ", data_series_name, "Request matches latest search request : ", request.uid, latest_search_request[data_series_name].uid);
+			
+			$("div.section_content", result_section).html(response);
 			post_load_result_table(result_section);
 			$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-loading ui-icon-alert').addClass('ui-icon-check').attr("title", "Table has been updated");
 		}
 		else
 		{
-			log("Result table received has wrong search_id: ", table.attr("search_id"), "expected search_id: ",  search_id);
+			log("NOT Updating result section for data series: ", data_series_name, "Request does NOT match latest search request : ", request.uid, latest_search_request[data_series_name].uid);
 		}
-	})
-	.fail(function(response){
-		log("load_result_table FAILED search_id: ", search_id, "response: ", response);
-		alert_user(response);
-		$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Table has NOT been updated");
 	});
+	
+	// Failure or abort
+	request.fail(function(request, status){
+		log("load_result_table FAILED for request: ", request.uid, "status: ", status, "response: ", request.responseText);
+		if (status == "abort")
+		{
+			inform_user("Your previous search for data series "+ data_series_name + " was aborted!");
+			$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Previous search was aborted");
+		}
+		else
+		{
+			alert_user(request.responseText);
+			$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Table has NOT been updated");
+		}
+	});
+	
 	// Add a visual indication that the search request was submited
 	$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-check ui-icon-alert').addClass('ui-icon-loading').attr("title", "Table is being updated");
 	
@@ -170,26 +180,31 @@ function load_result_table(result_section, table_url, search_id)
 
 function post_load_result_table(result_section)
 {
-	log("post_load_result_table");
+		
+	var data_series_name = get_data_series_name(result_section);
+	log("post_load_result_table data_series_name: ", data_series_name);
+	
 	// Transform download anchors to button
 	$('a.download_fits', result_section).button({icons: {primary: "ui-icon-arrowthickstop-1-s"}, text:false}).click(function(e){
 		e.preventDefault();
 		download_fits($(this), $(this).attr("href"));
 	});
+	
 	// Transform preview anchors to button
 	$('a.preview_image', result_section).button({icons: {primary: "ui-icon-image"}, text:false}).click(function(e){
 		e.preventDefault();
 		preview_image($(this), $(this).attr("href"), $(this).attr("img_title"));
 	});
+	
 	// Transform navigation anchors to buttons
 	$('a.first_page', result_section).button({icons: {primary: "ui-icon-seek-first"}, text:false});
 	$('a.previous_page', result_section).button({icons: {primary: "ui-icon-seek-prev"}, text:false});
 	$('a.next_page', result_section).button({icons: {primary: "ui-icon-seek-next"}, text:false});
 	$('a.last_page', result_section).button({icons: {primary: "ui-icon-seek-end"}, text:false});
+	
 	// Attach navigation buttons click handler
-	var data_series_name = get_data_series_name(result_section);
 	var selection = selections[data_series_name];
-	$('div.page_navigation a').each(function(){
+	$('div.page_navigation a', result_section).each(function(){
 		if($(this).attr("href")) 
 		{
 			$(this).click(function(e){
@@ -204,7 +219,7 @@ function post_load_result_table(result_section)
 					$("input:checkbox:checked", $('table.result_table', result_section)).each(function(){selection.selected.add(this.value)});
 				}
 				// We get the new result table
-				load_result_table(result_section, $(this).attr("href"), saved_search_id[data_series_name]);
+				load_result_table(result_section, $(this).attr("href"));
 			});
 		}
 		else
@@ -253,9 +268,6 @@ function download_fits(button, file_link)
 
 function preview_image(button, image_link, title)
 {
-	if(title == null)
-		title = button.attr("title");
-
 	// Change the color of the icon so user knows what he already downloaded
 	button.addClass('ui-button-disabled ui-state-disabled');
 
@@ -264,7 +276,7 @@ function preview_image(button, image_link, title)
 	box.dialog({
 			modal: false,
 			width: 580,
-			title: title,
+			title: title || button.attr("title"),
 			draggable: true,
 			resizable: true,
 			close: function(event, ui) {$( this ).remove(); button.removeClass('ui-button-disabled ui-state-disabled');},
@@ -272,6 +284,21 @@ function preview_image(button, image_link, title)
 
 	// Change the image to the preview. The image switch will append automatically when the good image is available.
 	$("img", box).attr("src", image_link);
+}
+
+function execute_result_action(action_url, data)
+{
+	// Make an ajax request to action_url and display the response
+	log("execute_result_action url: ", action_url, "data: ", $.param(data));
+	$.post(action_url, data)
+	.done(function(response){
+		log("execute_result_action SUCCEEDED url: ", action_url, "response: ", response);
+		inform_user(response);
+	})
+	.fail(function(request, status){
+		log("execute_result_action FAILED url: ", action_url, "response: ", request.responseText);
+		alert_user(request.responseText);
+	});
 }
 
 // Things to do at the very beginning
@@ -364,28 +391,31 @@ function load_events_handlers()
 		// We save the search_query
 		selections[get_data_series_name(e.target)].search_query = form.serialize();
 		// We generate the search id when a new search is requested
-		load_result_table($("div.result_section", form.closest("div.tab_content")), form.attr("action") + "?" + form.serialize(),  Math.random());
+		load_result_table($("div.result_section", form.closest("div.tab_content")), form.attr("action") + "?" + form.serialize());
 	});
 	
 	// Change helptext into buttons
 	$("span.helptext").replaceWith(function() {return '<button type="button" class="help" title="' + $(this).text() + '">Help</button>';});
 	
-	// Make up the buttons
 	$("button.help").button({icons: {primary: "ui-icon-help"}, text:false}).addClass('ui-state-highlight').click(function(e){
 		inform_user($(this).attr("title"))
 	});
+	
+	// Make up the action buttons and add click handler
 	$("button.search_data").button({icons: {primary: "ui-icon-search"}});
-	$("button.select_all").button({icons: {primary: "ui-icon-check"}, text:false}).click(function(e){
-		select_all($(this).closest("table"));
-	});
-	$("button.unselect_all").button({icons: {primary: "ui-icon-close"}, text:false}).click(function(e){
-		unselect_all($(this).closest("table"));
-	});
 	$("button.download_bundle").button({icons: {primary: "ui-icon-cart"}}).hide();
 	$("button.export_data").button({icons: {primary: "ui-icon-extlink"}}).click(function(e){$(e.target).prop("disabled", true);});
 	$("button.export_keywords").button({icons: {primary: "ui-icon-document"}}).click(function(e){});
 	$("button.bring_online").button({icons: {primary: "ui-icon-home"}}).hide();
 	$("button.export_cutout").button({icons: {primary: "ui-icon-scissors"}}).hide();
+	
+	/* TODO delete
+	$("button.select_all").button({icons: {primary: "ui-icon-check"}, text:false}).click(function(e){
+		select_all($(this).closest("table"));
+	});
+	$("button.unselect_all").button({icons: {primary: "ui-icon-close"}, text:false}).click(function(e){
+		unselect_all($(this).closest("table"));
+	});*/
 	
 	// Transform the result action form to do ajax request instead
 	$("div.result_actions form").submit(function(e){
@@ -430,3 +460,5 @@ function load_events_handlers()
 
 // Attach all the events handler 
 $(document).ready(load_events_handlers);
+	
+	
