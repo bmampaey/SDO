@@ -6,19 +6,15 @@
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 		<title>SDO online</title>
-		<!-- Include broken browsers fixes -->
-		<script src="{% static "PMD/js/iso8601.js" %}" type="text/javascript"></script>
-		<script src="{% static "PMD/js/fix_ie.js" %}" type="text/javascript"></script>
+		
 		<!-- Include jquery libraries and plugins -->
 		<script src="//code.jquery.com/jquery-1.10.2.js"></script>
 		<script src="//code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
-		<script src="{% static "PMD/js/jquery-ui-timepicker-addon.js" %}" type="text/javascript"></script>
-		<script src="{% static "PMD/js/jquery.cookie.js" %}" type="text/javascript"></script>
-		<script src="{% static "PMD/js/json.js" %}" type="text/javascript"></script>
-		<script src="{% static "PMD/js/dateformat.js" %}" type="text/javascript"></script>
+		<script src="{% static 'PMD/js/jquery-ui-timepicker-addon.js' %}" type="text/javascript"></script>
+		<script src="{% static 'PMD/js/jquery.cookie.js' %}" type="text/javascript"></script>
 
 		<!-- Include application javascripts -->
-		<script src="{% static "PMD/js/sdo_wizard.js" %}" type="text/javascript"></script>
+		<script src="{% static 'PMD/js/sdo_wizard.js' %}" type="text/javascript"></script>
 		
 		<!-- Javascript constants -->
 		<script type="text/javascript" charset="utf-8">
@@ -27,9 +23,9 @@
 		</script>
 		
 		<!-- Include stylesheets -->
-		<link rel="stylesheet" href="{% static "PMD/css/reset.css" %}" type="text/css">
-		<link rel="stylesheet" href="{% static "PMD/css/jquery-ui-1.8.16.custom.css" %}" type="text/css">
-		<link rel="stylesheet" href="{% static "PMD/css/sdo_wizard.css" %}" type="text/css">
+		<link rel="stylesheet" href="{% static 'PMD/css/reset.css' %}" type="text/css">
+		<link rel="stylesheet" href="{% static 'PMD/css/jquery-ui-1.8.16.custom.css' %}" type="text/css">
+		<link rel="stylesheet" href="{% static 'PMD/css/sdo_wizard.css' %}" type="text/css">
 	</head>
 <body>
 
