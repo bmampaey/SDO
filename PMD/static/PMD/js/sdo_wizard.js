@@ -94,7 +94,7 @@ function inform_user(message, box)
 	}
 }
 
-function data_series_name(object)
+function get_data_series_name(object)
 {
 	return $(object).closest("div.tab_content").attr("id");
 }
@@ -103,20 +103,18 @@ function select_all(table)
 {
 	log("select_all");
 	$("input:checkbox", table).each(function(){$(this).prop('checked', true)});
-	var name = data_series_name(table);
-	selections[name].all_selected = true;
-	selections[name].selected = new Set();
-//	selection.search_query = last_search_query[name];
+	var data_series_name = get_data_series_name(table);
+	selections[data_series_name].all_selected = true;
+	selections[data_series_name].selected = new Set();
 }
 
 function unselect_all(table)
 {
 	log("unselect_all");
 	$("input:checkbox", table).each(function(){$(this).prop('checked', false)});
-	var name = data_series_name(table);
-	selections[name].all_selected = false;
-	selections[name].selected = new Set();
-//	selection.search_query = last_search_query[name];
+	var data_series_name = get_data_series_name(table);
+	selections[data_series_name].all_selected = false;
+	selections[data_series_name].selected = new Set();
 }
 
 function execute_result_action(action_url, data)
@@ -124,30 +122,46 @@ function execute_result_action(action_url, data)
 	log("execute_result_action url: ", action_url, "data: ", $.param(data));
 	$.post(action_url, data)
 	.done(function(response){
+		log("execute_result_action SUCCEEDED response: ", response);
 		inform_user(response);
 	})
 	.fail(function(response){
+		log("execute_result_action FAILED response: ", response);
 		alert_user(response);
 	});
 }
 
-function load_result_table(result_section, table_url)
+function load_result_table(result_section, table_url, search_id)
 {
-	// Transform into an ajax get and update only if search_query in table match selection search_query
 	// Make an ajax request to table_url and load the result to result_section
-	log("load_result_table url: ", table_url);
-	$("div.section_content", result_section).load(table_url, function(response, status, xhr){
-		log("load_result_table request status: ", status);
-		if(status == "success")
+	// But 
+	log("load_result_table url: ", table_url, "search_id: ", search_id);
+	
+	// Save the search_id, so the result table will be loaded only if the table's search_id matches the saved search_id
+	// If the users make a new search before the current one has been loaded, the result table of the first one will be discarded
+	var data_series_name = get_data_series_name(result_section);
+	saved_search_id[data_series_name] = search_id;
+
+	$.get(table_url, {"search_id" : search_id})
+	.done(function(response){
+		log("load_result_table SUCCEEDED for search_id: ", search_id);
+		table = $(response);
+		log("Result table search_id: ", table.attr("search_id"), "saved search_id: ", saved_search_id[data_series_name]);
+		if(table.attr("search_id") == search_id)
 		{
+			$("div.section_content", result_section).replaceWith(table);
 			post_load_result_table(result_section);
 			$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-loading ui-icon-alert').addClass('ui-icon-check').attr("title", "Table has been updated");
 		}
 		else
 		{
-			alert_user(response);
-			$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Table has NOT been updated");
+			log("Result table received has wrong search_id: ", table.attr("search_id"), "expected search_id: ",  search_id);
 		}
+	})
+	.fail(function(response){
+		log("load_result_table FAILED search_id: ", search_id, "response: ", response);
+		alert_user(response);
+		$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Table has NOT been updated");
 	});
 	// Add a visual indication that the search request was submited
 	$("div.section_title span.visual_indicator", result_section).removeClass('ui-icon-check ui-icon-alert').addClass('ui-icon-loading').attr("title", "Table is being updated");
@@ -173,7 +187,8 @@ function post_load_result_table(result_section)
 	$('a.next_page', result_section).button({icons: {primary: "ui-icon-seek-next"}, text:false});
 	$('a.last_page', result_section).button({icons: {primary: "ui-icon-seek-end"}, text:false});
 	// Attach navigation buttons click handler
-	var selection = selections[data_series_name(result_section)];
+	var data_series_name = get_data_series_name(result_section);
+	var selection = selections[data_series_name];
 	$('div.page_navigation a').each(function(){
 		if($(this).attr("href")) 
 		{
@@ -189,7 +204,7 @@ function post_load_result_table(result_section)
 					$("input:checkbox:checked", $('table.result_table', result_section)).each(function(){selection.selected.add(this.value)});
 				}
 				// We get the new result table
-				load_result_table(result_section, $(this).attr("href"));
+				load_result_table(result_section, $(this).attr("href"), saved_search_id[data_series_name]);
 			});
 		}
 		else
@@ -347,8 +362,9 @@ function load_events_handlers()
 		e.preventDefault();
 		var form = $(e.target);
 		// We save the search_query
-		selections[data_series_name(e.target)].search_query = form.serialize();
-		load_result_table($("div.result_section", form.closest("div.tab_content")), form.attr("action") + "?" + form.serialize());
+		selections[get_data_series_name(e.target)].search_query = form.serialize();
+		// We generate the search id when a new search is requested
+		load_result_table($("div.result_section", form.closest("div.tab_content")), form.attr("action") + "?" + form.serialize(),  Math.random());
 	});
 	
 	// Change helptext into buttons
@@ -375,7 +391,7 @@ function load_events_handlers()
 	$("div.result_actions form").submit(function(e){
 		e.preventDefault();
 		// Create the data object to be sent
-		var selection = selections[data_series_name(e.target)];
+		var selection = selections[get_data_series_name(e.target)];
 		var data = {
 			all_selected: selection.all_selected,
 			selected: selection.selected.values(),
