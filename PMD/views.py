@@ -30,11 +30,7 @@ def result_table(request, data_series_name):
 		request.session[data_series_name] = dict()
 	request_session = request.session[data_series_name]
 	
-	# Update the request session
-	request_session["search_id"] = request.GET.get("search_id", request_session.get("search_id", None))
-	
 	# Get the result table
-	data_series_search_forms = DataSeriesSearchForm.sub_forms()
 	if data_series_name in data_series_search_forms:
 		try:
 			result_table = data_series_search_forms[data_series_name].get_result_table(request.GET, request_session, request.GET.get('page', 1))
@@ -43,7 +39,7 @@ def result_table(request, data_series_name):
 	else:
 		return HttpResponseBadRequest("Unknown data series %s" % data_series_name)
 	
-	result_table["search_id"] = request_session["search_id"]
+	# Send the response
 	return render(request, 'PMD/result_table.html', result_table)
 
 @require_POST
