@@ -10,7 +10,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
 from django.conf import settings
 from django.db import transaction
 
-from celery import Celery
+from celery import Celery, chord
 from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 
@@ -467,8 +467,39 @@ def get_preview(request):
 	return image_path
 
 @app.task
-def execute_export_data_request(request):
-	pass
+def execute_export_data_request(request, paginator):
+	
+	# Add the recnums from the paginator to the request
+	if paginator is not None:
+		recnums = list()
+		for page_number in paginator.page_range():
+			try:
+				page = paginator.page(page_number)
+			except EmptyPage:
+				pass
+			else:
+				for obj in page.object_list:
+					request.recnums.append(obj.recnum)
+	
+	log.debug("Found %s records to download", len(request.recnums))
+	update_request_status(request, "RUNNING")
+	
+	# Make the list of download_requests
+	download_requests = list()
+	for recnum in request.recnums[:]:
+		try:
+			record = request.data_series.record.objects.get(recnum = recnum)
+		except request.data_series.record.DoesNotExist, why:
+			log.error("Export data request %s has an invalid recnum %s", request.id, recnum)
+			request.recnums.remove(recnum)
+		else:
+			download_requests.append(DataDownloadRequest.create_from_record(record))
+	
+	for download_request in download_requests:
+		get_data.s(download_request).apply_async()
+	# TODO Make a chord or make a group signature and call it with apply_async?
+	# Needs to send a mail in any case
+	#	res = chord((add.s(i, i) for i in xrange(10)), xsum.s())()
 
 @app.task
 def execute_export_meta_data_request(request):

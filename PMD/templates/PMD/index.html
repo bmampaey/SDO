@@ -24,7 +24,7 @@
 		
 		<!-- Include stylesheets -->
 		<link rel="stylesheet" href="{% static 'PMD/css/reset.css' %}" type="text/css">
-		<link rel="stylesheet" href="{% static 'PMD/css/jquery-ui-1.8.16.custom.css' %}" type="text/css">
+		<link rel="stylesheet" href="{% static 'PMD/css/jquery-ui-1.10.4.custom.css' %}" type="text/css">
 		<link rel="stylesheet" href="{% static 'PMD/css/sdo_wizard.css' %}" type="text/css">
 	</head>
 <body>
@@ -120,23 +120,23 @@
 						&#8592; Please make a search for data on the left.
 					</div>
 					<div class="actions result_actions">
-						<form action="{% url 'PMD:download_bundle' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:result_action' 'download_bundle' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="download_bundle" title="Download the selected data as a zip file">Download data</button>
 						</form>
-						<form action="{% url 'PMD:export_data' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:result_action' 'export_data' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="export_data" title="Export the selected data for download">Export data</button>
 						</form>
-						<form action="{% url 'PMD:export_keywords' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:result_action' 'export_keywords' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="export_keywords" title="Export the selected meta-data to a csv file">Export keywords</button>
 						</form>
-						<form action="{% url 'PMD:bring_online' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:result_action' 'bring_online' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="bring_online" title="Bring data online at ROB">Bring online</button>
 						</form>
-						<form action="{% url 'PMD:export_cutout' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:result_action' 'export_cutout' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="export_cutout" title="Download a cutout of the selected data">Export cutout</button>
 						</form>

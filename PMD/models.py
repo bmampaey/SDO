@@ -5,6 +5,11 @@ import dateutil.parser as date_parser
 from django.db import models
 from django.forms.models import model_to_dict
 from django.core.validators import RegexValidator
+from django.contrib.auth.models import User
+
+# djorm-pgarray allow to use postgres arrays
+# To install: "sudo pip install djorm-pgarray"
+from djorm_pgarray.fields import BigIntegerArrayField
 
 from DRMS.models import DRMSDataSeries
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
@@ -459,3 +464,21 @@ class MetaDataUpdateRequest(Request):
 	class Meta(Request.Meta):
 		db_table = "meta_data_update_request"
 		verbose_name = "Meta-data update request"
+
+class ExportDataRequest(models.Model):
+	user = models.ForeignKey(User, on_delete=models.DO_NOTHING)
+	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.DO_NOTHING, db_column = "data_series_name")
+	recnums = BigIntegerArrayField(help_text = "List of recnums to export")
+	status = models.CharField(help_text = "Request status.", max_length=8, blank=False, null=False, default = "NEW")
+	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now())
+	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
+	
+	class Meta:
+		db_table = "export_data_request"
+		verbose_name = "Export data request"
+	
+	@property
+	def export_path(self):
+		cache = GlobalConfig.get("export_cache")
+		path = os.path.join(cache, self.user.username, self.data_series.name, self.requested.strftime("%Y%m%d_%H%M%S"))
+		return path

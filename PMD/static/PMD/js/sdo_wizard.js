@@ -43,13 +43,13 @@ function alert_user(message, box)
 	log("alert_user message: ", message);
 	if(box == null)
 	{
-		box = $('<div class="ui-state-error"><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
+		box = $('<div><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
 		box.dialog({
 			modal: true,
 			draggable: false,
 			title: "Error",
 			resizable: false,
-			close: function(event, ui) {$( this ).remove();},
+			dialogClass: "ui-state-error",
 			buttons: {
 				Ok: function() {
 					$( this ).dialog( "close" );
@@ -70,13 +70,13 @@ function inform_user(message, box)
 	log("inform_user message: ", message);
 	if(box == null)
 	{
-		box = $('<div class="ui-state-highlight"><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
+		box = $('<div><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
 		box.dialog({
 			modal: false,
 			draggable: false,
 			title: "Note",
 			resizable: false,
-			//close: function(event, ui) {$( this ).remove();},
+			dialogClass: "ui-state-highlight",
 			buttons: [
 				{
 					text: "Ok",
@@ -103,7 +103,7 @@ function get_data_series_name(object)
 function select_all(table)
 {
 	log("select_all");
-	$("input:checkbox", table).each(function(){$(this).prop('checked', true)});
+	$("input:checkbox", table).each(function(){$(this).prop('checked', true);});
 	var data_series_name = get_data_series_name(table);
 	selections[data_series_name].all_selected = true;
 	selections[data_series_name].selected = new Set();
@@ -112,7 +112,7 @@ function select_all(table)
 function unselect_all(table)
 {
 	log("unselect_all");
-	$("input:checkbox", table).each(function(){$(this).prop('checked', false)});
+	$("input:checkbox", table).each(function(){$(this).prop('checked', false);});
 	var data_series_name = get_data_series_name(table);
 	selections[data_series_name].all_selected = false;
 	selections[data_series_name].selected = new Set();
@@ -212,11 +212,11 @@ function post_load_result_table(result_section)
 				// We update the selection
 				if(selection.all_selected)
 				{
-					$("input:checkbox:not(:checked)", $('table.result_table', result_section)).each(function(){selection.selected.add(this.value)});
+					$("input:checkbox:not(:checked)", $('table.result_table', result_section)).each(function(){selection.selected.add(this.value);});
 				}
 				else
 				{
-					$("input:checkbox:checked", $('table.result_table', result_section)).each(function(){selection.selected.add(this.value)});
+					$("input:checkbox:checked", $('table.result_table', result_section)).each(function(){selection.selected.add(this.value);});
 				}
 				// We get the new result table
 				load_result_table(result_section, $(this).attr("href"));
@@ -227,7 +227,7 @@ function post_load_result_table(result_section)
 			$(this).addClass('ui-button-disabled ui-state-disabled');
 		}
 	});
-	
+	// TODO create the buttons entirely in javascript and remove from result_table
 	// Attach select_all unselect_all buttons click handler
 	$('button.select_all', result_section).button({icons: {primary: "ui-icon-check"}, text:true}).click(function(e){
 		select_all($('table.result_table', result_section));
@@ -314,7 +314,6 @@ function load_events_handlers()
 	$("#tabs").tabs(
 		{
 			active: -1,
-			heightStyle: "fill",
 			beforeActivate: function(event, ui){
 				if(ui.newPanel.attr('id') != "user")
 				{
@@ -346,7 +345,7 @@ function load_events_handlers()
 	var now = new Date();
 	$("#id_start_date").datetimepicker(
 		{
-			minDateTime: new Date(2010,03,01),
+			minDateTime: new Date(2010,03,29),
 			maxDateTime: now,
 			// time picker options cannot be set trough setDefaults
 			timeFormat: 'HH:mm:ss', 
@@ -358,7 +357,7 @@ function load_events_handlers()
 	
 	$("#id_end_date").datetimepicker(
 		{
-			minDateTime: new Date(2010,03,01),
+			minDateTime: new Date(2010,03,29),
 			maxDateTime: now,
 			// time picker options cannot be set trough setDefaults
 			timeFormat: 'HH:mm:ss',
@@ -388,9 +387,14 @@ function load_events_handlers()
 	$("form.data_search_form").submit(function(e){
 		e.preventDefault();
 		var form = $(e.target);
-		// We save the search_query
-		selections[get_data_series_name(e.target)].search_query = form.serialize();
-		// We generate the search id when a new search is requested
+		
+		// Update the selection
+		var selection = selections[get_data_series_name(e.target)];
+		selection.all_selected = false;
+		selection.selected = new Set();
+		selection.search_query = form.serialize();
+		
+		// Make the search and load the table
 		load_result_table($("div.result_section", form.closest("div.tab_content")), form.attr("action") + "?" + form.serialize());
 	});
 	
@@ -398,7 +402,7 @@ function load_events_handlers()
 	$("span.helptext").replaceWith(function() {return '<button type="button" class="help" title="' + $(this).text() + '">Help</button>';});
 	
 	$("button.help").button({icons: {primary: "ui-icon-help"}, text:false}).addClass('ui-state-highlight').click(function(e){
-		inform_user($(this).attr("title"))
+		inform_user($(this).attr("title"));
 	});
 	
 	// Make up the action buttons and add click handler
@@ -409,25 +413,26 @@ function load_events_handlers()
 	$("button.bring_online").button({icons: {primary: "ui-icon-home"}}).hide();
 	$("button.export_cutout").button({icons: {primary: "ui-icon-scissors"}}).hide();
 	
-	/* TODO delete
-	$("button.select_all").button({icons: {primary: "ui-icon-check"}, text:false}).click(function(e){
-		select_all($(this).closest("table"));
-	});
-	$("button.unselect_all").button({icons: {primary: "ui-icon-close"}, text:false}).click(function(e){
-		unselect_all($(this).closest("table"));
-	});*/
 	
 	// Transform the result action form to do ajax request instead
 	$("div.result_actions form").submit(function(e){
 		e.preventDefault();
-		// Create the data object to be sent
+		// Update the selected checkboxes
 		var selection = selections[get_data_series_name(e.target)];
+		if(selection.all_selected)
+		{
+			$("input:checkbox:not(:checked)", $('div.result_section table.result_table', $(e.target).closest("div.result_panel"))).each(function(){selection.selected.add(this.value);});
+		}
+		else
+		{
+			$("input:checkbox:checked", $('div.result_section table.result_table', $(e.target).closest("div.result_panel"))).each(function(){selection.selected.add(this.value);});
+		}
+		// Create the data object to be sent
 		var data = {
 			all_selected: selection.all_selected,
 			selected: selection.selected.values(),
-			search_query: selection.search_query,
 		};
-		execute_result_action($(e.target).attr("action"), data);
+		execute_result_action($(e.target).attr("action")+ "?" + selection.search_query, data);
 	});
 	
 	// Set up global variables
@@ -436,7 +441,7 @@ function load_events_handlers()
 			all_selected: false,
 			selected: new Set(),
 			search_query: undefined,
-		}
+		};
 	});
 
 	// Set some JQuery classes to make sections pretty
@@ -444,21 +449,23 @@ function load_events_handlers()
 	$("div.section_title, div.actions").addClass("ui-widget-header ui-corner-all ui-helper-clearfix");
 	$("div.actions").addClass("ui-widget-content ui-corner-all ui-helper-clearfix");
 	
-	// We need to add the crsf token to all ajax post
+	// Some adjustments to ajax requests (get and post) to make it run smoothly with django
 	$.ajaxSetup({
+		// Include the crsf token to all ajax post
 		beforeSend: function(xhr, settings) {
 			if (!/^https?:.*/.test(settings.url)  && settings.type == "POST")
 			{
 				xhr.setRequestHeader("X-CSRFToken", $.cookie('csrftoken'));
 			}
-		}
+		},
+		// Transform the data to be sent in a traditional way so that django can read it  
+		traditional: true,
 	});
 	
-	// Submit the search forms as to show some data in the tables
-	$("form.data_search_form").submit();
+	// Submit the search forms as to show some data in the tables from the beginning
+  $("form.data_search_form").submit();
 }
+
 
 // Attach all the events handler 
 $(document).ready(load_events_handlers);
-	
-	

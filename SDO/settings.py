@@ -84,6 +84,10 @@ USE_TZ = False
 
 SHORT_DATETIME_FORMAT = DATETIME_FORMAT = 'Y-m-d H:i:s'
 
+# Save the session to the database on every single request
+# Important, see https://docs.djangoproject.com/en/dev/topics/http/sessions/#when-sessions-are-saved
+SESSION_SAVE_EVERY_REQUEST = True
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 
@@ -93,6 +97,7 @@ STATICFILES_DIRS = (
 	os.path.join(BASE_DIR, "static"),
 )
 
+# In production, this must change
 MEDIA_URL = '/tmp/sdo_cache/'
 
 MEDIA_ROOT = '/tmp/sdo_cache'

@@ -28,7 +28,8 @@ div.result_panel {
 
 /* Section elements */
 div.section {
-	margin: 1em;
+	margin: 0.5em;
+	padding: .2em;
 }
 
 div.section_title {

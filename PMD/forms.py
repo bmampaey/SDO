@@ -17,9 +17,9 @@ class LoginForm(forms.Form):
 
 
 class TimeRangeForm(forms.Form):
-	start_date = forms.DateTimeField(required=False, initial = datetime(2010, 03, 01))
+	start_date = forms.DateTimeField(required=False, initial = datetime(2010, 03, 29))
 	#end_date = forms.DateTimeField(required=False, initial = datetime.utcnow())
-	end_date = forms.DateTimeField(required=False, initial = datetime(2010, 06, 01))
+	end_date = forms.DateTimeField(required=False, initial = datetime(2010, 05, 15))
 	cadence = forms.IntegerField(required=False, min_value = 1)
 	cadence_multiplier = forms.TypedChoiceField(required=False, coerce=int, choices=[
 		(1,  "second(s)"),
@@ -69,17 +69,10 @@ class TimeRangeForm(forms.Form):
 		else:
 			cadence = cls.base_fields['cadence'].initial
 		
-		# Update the session
 		request_session['start_date'] = start_date.isoformat()
 		request_session['end_date'] = end_date.isoformat()
-		request_session['cadence'] = None
-		
-		return start_date, end_date, cadence
-
-class ResultActionForm(forms.Form):
-	all_selected = forms.BooleanField(required=True)
-	selected = forms.MultipleChoiceField(required=True)
-	search_query = forms.CharField(required=True)
+		request_session['cadence'] = cadence
+		return {"start_date": start_date, "end_date": end_date, "cadence": cadence}
 
 class DataSeriesSearchForm(forms.Form):
 	limit = forms.IntegerField(required=False, initial=20, widget=forms.HiddenInput())
@@ -101,321 +94,199 @@ class DataSeriesSearchForm(forms.Form):
 			data[name] = field.initial
 		return data
 	
-	@property
-	def data_series_name(self):
-		return self.record_table
-
-
-class AiaLev1SearchForm(DataSeriesSearchForm):
-	record_table = "aia_lev1"
-	tab_name = "AIA Lev1"
-	best_quality = forms.BooleanField(required=False, help_text="Search results will only display data for which the quality keyword is 0")
-	wavelengths = forms.MultipleChoiceField(required=False, widget=forms.SelectMultiple(), initial = [171, 193], choices=[
-		(94, '094Å'),
-		(131, '131Å'),
-		(171, '171Å'),
-		(193, '193Å'),
-		(211, '211Å'),
-		(304, '304Å'),
-		(335, '335Å'),
-		(1700, '1600Å'),
-		(1600, '1700Å'),
-		(4500, '4500Å')
-	])
-	
-	
 	@classmethod
-	def get_paginator(cls, request_data, request_session):
-		
-		# Parse the request data
-		form = cls(request_data)
-		if not form.is_valid():
-			raise Exception(str(form.errors))
-		
-		query_parameters = cls.initials()
-		query_parameters.update(request_session)
-		query_parameters.update(form.cleaned_data)
-		query_parameters.update(TimeRangeForm.get_time_range(request_data, request_session))
-		
-		# For each field we try to get the values from the form else from the session else from the initials value
-		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
-			request_session['best_quality'] = cleaned_data['best_quality']
-		elif 'best_quality' not in request_session:
-			request_session['best_quality'] = cls.base_fields['best_quality'].initial
-		
-		if 'wavelengths' in cleaned_data and cleaned_data['wavelengths']:
-			request_session['wavelengths'] = cleaned_data['wavelengths']
-		elif 'wavelengths' not in request_session:
-			request_session['wavelengths'] = cls.base_fields['wavelengths'].initial
-		
-		# Parse the time range
-		start_date, end_date, cadence = TimeRangeForm.get_time_range(request_data, request_session)
-		
-		# Make the QuerySet
-		query_set = DataSeries.objects.get(record_table = cls.record_table).record.objects.filter()
-		
-		if request_session['best_quality']:
-			query_set = query_set.filter(quality=0)
-		
-		query_set = query_set.filter(wavelnth__in=request_session['wavelengths'])
-		#import pdb; pdb.set_trace()
-		# When cadence is specified we need a custom implementation
-		# But only if cadence is larger than 12s as this is the minimal cadence for AIA
-		if cadence and cadence > 12:
+	def get_paginator(cls, query_set, limit, cadence = 0):
+		# When cadence is specified we need a custom implementation of paginator
+		# But only if cadence is big enough
+		if cadence and cadence > cls.minimal_cadence:
 			raise Exception("Not yet implemented")
-		
 		else:
-			if start_date:
-				query_set = query_set.filter(date_obs__gte = start_date)
-			
-			if end_date:
-				query_set = query_set.filter(date_obs__lt = end_date)
-			
-			return EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
+			return EstimatedCountPaginator(query_set, limit, allow_empty_first_page = False, orphans = limit/2)
 
 	@classmethod
 	def get_result_table(cls, request_data, request_session, page = None):
 		"""Return a dict with all the necessary info to create a table of results"""
+		# THIS COULD GO INTO THE VIEW
+		# Get the query set
+		query_set = cls.get_query_set(request_data, request_session)
 		
-		# Table to be returned
-		table = {
-			'headers' : ["Date", "Wavelength", "Quality"],
-			'records' : [],
-			'first_page_number' : None,
-			'previous_page_number' : None,
-			'next_page_number' : None,
-			'current_page_number' : None,
-			'last_page_number': None,
-			'data_series_name': cls.record_table,
-		}
+		# Get the paginator and get the page
+		paginator = cls.get_paginator(query_set, request_session["limit"], request_session["cadence"])
+		try:
+			page = paginator.page(page)
+		except PageNotAnInteger:
+			page = paginator.page(1)
+		except EmptyPage:
+			raise Exception("No result found for your search criteria")
+		
+		# Result table
+		table = {'data_series_name': cls.record_table}
+		
+		# Make the record list from the page objects
+		table['records'], table['headers'] = cls.get_records_headers(page.object_list)
+		
+		# Set up the pages navigation # TODO use urlencode and store full url
+		table['first_page_number'] = 1 if page.number > 1 else None
+		table['previous_page_number'] = page.previous_page_number() if page.has_previous() else None
+		table['current_page_number'] = page.number
+		table['next_page_number'] = page.next_page_number() if page.has_next() else None
+		table['last_page_number'] = paginator.num_pages if page.number < paginator.num_pages else None
+		table['limit'] = request_session['limit']
+		
+		return table
+	
+	@property
+	def data_series_name(self):
+		return self.record_table
+
+WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335, 1600, 1700, 4500]
+class AiaLev1SearchForm(DataSeriesSearchForm):
+	record_table = "aia_lev1"
+	tab_name = "AIA Lev1"
+	minimal_cadence = 12
+	best_quality = forms.BooleanField(required=True, initial = False, help_text="Search results will only display data for which the quality keyword is 0")
+	wavelengths = forms.MultipleChoiceField(required=True, widget=forms.SelectMultiple(), initial = WAVELENGTHS, choices=[(w, u'%sÅ'%w) for w in WAVELENGTHS])
+	
+	@classmethod
+	def get_query_set(cls, request_data, request_session = {}):
 		
 		# Parse the request data
 		form = cls(request_data)
-		if not form.is_valid():
-			raise Exception(str(form.errors))
-		else:
-			cleaned_data = form.cleaned_data
+		form.is_valid()
 		
-		# For each field we try to get the values from the form else from the session else from the initials value
-		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
-			request_session['best_quality'] = cleaned_data['best_quality']
-		elif 'best_quality' not in request_session:
-			request_session['best_quality'] = cls.base_fields['best_quality'].initial
+		# For each parameter we try to get the values from the form or else from the session or else from the initials value
+		query_parameters = cls.initials()
+		query_parameters.update(request_session)
+		query_parameters.update(form.cleaned_data)
 		
-		if 'wavelengths' in cleaned_data and cleaned_data['wavelengths']:
-			request_session['wavelengths'] = cleaned_data['wavelengths']
-		elif 'wavelengths' not in request_session:
-			request_session['wavelengths'] = cls.base_fields['wavelengths'].initial
+		# Update the request session
+		request_session.update(query_parameters)
 		
-		# Parse the time range
-		start_date, end_date, cadence = TimeRangeForm.get_time_range(request_data, request_session)
+		# Add the time range parameters
+		query_parameters.update(TimeRangeForm.get_time_range(request_data, request_session))
 		
 		# Make the QuerySet
 		query_set = DataSeries.objects.get(record_table = cls.record_table).record.objects.filter()
 		
-		if request_session['best_quality']:
+		if query_parameters['best_quality']:
 			query_set = query_set.filter(quality=0)
 		
-		query_set = query_set.filter(wavelnth__in=request_session['wavelengths'])
-		#import pdb; pdb.set_trace()
-		# When cadence is specified we need a custom implementation
-		# But only if cadence is larger than 12s as this is the minimal cadence for AIA
-		if cadence and cadence > 12:
-			raise Exception("Not yet implemented")
+		# Do not add the condition if we take all wavelengths
+		if set(WAVELENGTHS) - set(query_parameters['wavelengths']):
+			query_set = query_set.filter(wavelnth__in=query_parameters['wavelengths'])
 		
-		else:
-			if start_date:
-				query_set = query_set.filter(date_obs__gte = start_date)
-			
-			if end_date:
-				query_set = query_set.filter(date_obs__lt = end_date)
-			
-			# We make the paginator and get the records
-			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
-			try:
-				page = paginator.page(page)
-			except PageNotAnInteger:
-				page = paginator.page(1)
-			except EmptyPage:
-				raise Exception("No result found for your search criteria")
-			
-			for record in page.object_list:
-				record_title = u"%s %dÅ %s" % (cls.tab_name, record.wavelnth, record.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
-				table['records'].append({'recnum': record.recnum, 'title': record_title, 'fields': [record.date_obs, record.wavelnth, record.quality]})
-			
-			# Set up the pages navigation
-			if page.number > 1:
-				table['first_page_number'] = 1
-			if page.has_previous():
-				table['previous_page_number'] = page.previous_page_number()
-			table['current_page_number'] = page.number
-			if page.has_next():
-				table['next_page_number'] = page.next_page_number()
-			if page.number < paginator.num_pages:
-				table['last_page_number'] = paginator.num_pages
+		if query_parameters['start_date']:
+			query_set = query_set.filter(date_obs__gte = query_parameters['start_date'])
 		
-		return table
+		if query_parameters['end_date']:
+			query_set = query_set.filter(date_obs__lt = query_parameters['end_date'])
+		
+		return query_set
+		
+	
+	@classmethod
+	def get_records_headers(cls, objects):
+		headers = ["Date", "Wavelength", "Quality"]
+		records = list()
+		for obj in objects:
+			record_title = u"%s %dÅ %s" % (cls.tab_name, obj.wavelnth, obj.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
+			records.append({'recnum': obj.recnum, 'title': record_title, 'fields': [obj.date_obs, obj.wavelnth, obj.quality]})
+		
+		return records, headers
 
 
 class HmiM45SSearchForm(DataSeriesSearchForm):
 	record_table =  "hmi_m_45s"
 	tab_name = "HMI Magnetogram"
-	best_quality = forms.BooleanField(required=False, help_text="Search results will only display data for which the quality keyword is 0")
+	minimal_cadence = 45
+	best_quality = forms.BooleanField(required=True, initial = False, help_text="Search results will only display data for which the quality keyword is 0")
 	
 	@classmethod
-	def get_result_table(cls, request_data, request_session, page = None):
-		"""Return a dict with all the necessary info to create a table of results"""
-		#import pdb; pdb.set_trace()
-		# Table to be returned
-		table = {
-			'headers' : ["Date", "Quality"],
-			'records' : [],
-			'first_page_number' : None,
-			'previous_page_number' : None,
-			'next_page_number' : None,
-			'current_page_number' : None,
-			'last_page_number': None,
-			'data_series_name': cls.record_table,
-		}
+	def get_query_set(cls, request_data, request_session = {}):
 		
 		# Parse the request data
 		form = cls(request_data)
-		if not form.is_valid():
-			raise Exception(str(form.errors))
-		else:
-			cleaned_data = form.cleaned_data
+		form.is_valid()
 		
-		# For each field we try to get the values from the form else from the session else from the initials value
-		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
-			request_session['best_quality'] = cleaned_data['best_quality']
-		elif 'best_quality' not in request_session:
-			request_session['best_quality'] = cls.base_fields['best_quality'].initial
+		# For each parameter we try to get the values from the form or else from the session or else from the initials value
+		query_parameters = cls.initials()
+		query_parameters.update(request_session)
+		query_parameters.update(form.cleaned_data)
 		
-		# Parse the time range
-		start_date, end_date, cadence = TimeRangeForm.get_time_range(request_data, request_session)
+		# Update the request session
+		request_session.update(query_parameters)
+		
+		# Add the time range parameters
+		query_parameters.update(TimeRangeForm.get_time_range(request_data, request_session))
 		
 		# Make the QuerySet
 		query_set = DataSeries.objects.get(record_table = cls.record_table).record.objects.filter()
 		
-		if request_session['best_quality']:
+		if query_parameters['best_quality']:
 			query_set = query_set.filter(quality=0)
 		
-		# When cadence is specified we need a custom implementation
-		# But only if cadence is larger than 45s as this is the minimal cadence for HMI
-		if cadence and cadence > 45:
-			raise Exception("Not yet implemented")
+		if query_parameters['start_date']:
+			query_set = query_set.filter(date_obs__gte = query_parameters['start_date'])
 		
-		else:
-			if start_date:
-				query_set = query_set.filter(date_obs__gte = start_date)
+		if query_parameters['end_date']:
+			query_set = query_set.filter(date_obs__lt = query_parameters['end_date'])
 			
-			if end_date:
-				query_set = query_set.filter(date_obs__lt = end_date)
-			
-			# We make the paginator and get the records
-			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
-			try:
-				page = paginator.page(page)
-			except PageNotAnInteger:
-				page = paginator.page(1)
-			except EmptyPage:
-				raise Exception("No result found for your search criteria")
-			
-			for record in page.object_list:
-				record_title = u"%s %s" % (cls.tab_name, record.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
-				table['records'].append({'recnum': record.recnum, 'title': record_title, 'fields': [record.date_obs, record.quality]})
-			
-			# Set up the pages navigation
-			if page.number > 1:
-				table['first_page_number'] = 1
-			if page.has_previous():
-				table['previous_page_number'] = page.previous_page_number()
-			table['current_page_number'] = page.number
-			if page.has_next():
-				table['next_page_number'] = page.next_page_number()
-			if page.number < paginator.num_pages:
-				table['last_page_number'] = paginator.num_pages
+			return query_set
+	
+	@classmethod
+	def get_records_headers(cls, objects):
+		headers = ["Date", "Quality"]
+		records = list()
+		for obj in objects:
+			record_title = u"%s %s" % (cls.tab_name, obj.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
+			records.append({'recnum': obj.recnum, 'title': record_title, 'fields': [obj.date_obs, obj.quality]})
 		
-		return table
+		return records, headers
 
 class HmiIc45SSearchForm(DataSeriesSearchForm):
 	record_table =  "hmi_ic_45s"
 	tab_name = "HMI Continuum"
-	best_quality = forms.BooleanField(required=False, help_text="Search results will only display data for which the quality keyword is 0")
+	minimal_cadence = 45
+	best_quality = forms.BooleanField(required=True, initial = False, help_text="Search results will only display data for which the quality keyword is 0")
 	
 	@classmethod
-	def get_result_table(cls, request_data, request_session, page = None):
-		"""Return a dict with all the necessary info to create a table of results"""
-		#import pdb; pdb.set_trace()
-		# Table to be returned
-		table = {
-			'headers' : ["Date", "Quality"],
-			'records' : [],
-			'first_page_number' : None,
-			'previous_page_number' : None,
-			'next_page_number' : None,
-			'current_page_number' : None,
-			'last_page_number': None,
-			'data_series_name': cls.record_table,
-		}
+	def get_query_set(cls, request_data, request_session = {}):
 		
 		# Parse the request data
 		form = cls(request_data)
-		if not form.is_valid():
-			raise Exception(str(form.errors))
-		else:
-			cleaned_data = form.cleaned_data
+		form.is_valid()
 		
-		# For each field we try to get the values from the form else from the session else from the initials value
-		if 'best_quality' in cleaned_data and cleaned_data['best_quality'] is not None:
-			request_session['best_quality'] = cleaned_data['best_quality']
-		elif 'best_quality' not in request_session:
-			request_session['best_quality'] = cls.base_fields['best_quality'].initial
+		# For each parameter we try to get the values from the form or else from the session or else from the initials value
+		query_parameters = cls.initials()
+		query_parameters.update(request_session)
+		query_parameters.update(form.cleaned_data)
 		
-		# Parse the time range
-		start_date, end_date, cadence = TimeRangeForm.get_time_range(request_data, request_session)
+		# Update the request session
+		request_session.update(query_parameters)
+		
+		# Add the time range parameters
+		query_parameters.update(TimeRangeForm.get_time_range(request_data, request_session))
 		
 		# Make the QuerySet
 		query_set = DataSeries.objects.get(record_table = cls.record_table).record.objects.filter()
 		
-		if request_session['best_quality']:
+		if query_parameters['best_quality']:
 			query_set = query_set.filter(quality=0)
 		
-		#import pdb; pdb.set_trace()
-		# When cadence is specified we need a custom implementation
-		# But only if cadence is larger than 45s as this is the minimal cadence for HMI
-		if cadence and cadence > 45:
-			raise Exception("Not yet implemented")
+		if query_parameters['start_date']:
+			query_set = query_set.filter(date_obs__gte = query_parameters['start_date'])
 		
-		else:
-			if start_date:
-				query_set = query_set.filter(date_obs__gte = start_date)
+		if query_parameters['end_date']:
+			query_set = query_set.filter(date_obs__lt = query_parameters['end_date'])
 			
-			if end_date:
-				query_set = query_set.filter(date_obs__lt = end_date)
-			
-			# We make the paginator and get the records
-			paginator = EstimatedCountPaginator(query_set, cleaned_data['limit'], allow_empty_first_page = False, orphans = cleaned_data['limit']/2)
-			try:
-				page = paginator.page(page)
-			except PageNotAnInteger:
-				page = paginator.page(1)
-			except EmptyPage:
-				raise Exception("No result found for your search criteria")
-			
-			for record in page.object_list:
-				record_title = u"%s %s" % (cls.tab_name, record.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
-				table['records'].append({'recnum': record.recnum, 'title': record_title, 'fields': [record.date_obs, record.quality]})
-			
-			# Set up the pages navigation
-			if page.number > 1:
-				table['first_page_number'] = 1
-			if page.has_previous():
-				table['previous_page_number'] = page.previous_page_number()
-			table['current_page_number'] = page.number
-			if page.has_next():
-				table['next_page_number'] = page.next_page_number()
-			if page.number < paginator.num_pages:
-				table['last_page_number'] = paginator.num_pages
+		return query_set
+	
+	@classmethod
+	def get_records_headers(cls, objects):
+		headers = ["Date", "Quality"]
+		records = list()
+		for obj in objects:
+			record_title = u"%s %s" % (cls.tab_name, obj.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
+			records.append({'recnum': obj.recnum, 'title': record_title, 'fields': [obj.date_obs, obj.quality]})
 		
-		return table
+		return records, headers
