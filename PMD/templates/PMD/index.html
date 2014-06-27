@@ -20,7 +20,8 @@
 		<script type="text/javascript" charset="utf-8">
 			CALENDAR_IMAGE_URL = "{% static 'PMD/images/calendar.png' %}";
 			LOADING_IMAGE_URL = "{% static 'PMD/images/loading.gif' %}";
-			USERNAME = "{{ user.username }}";
+			EXPORT_DATA_REQUEST_TABLE_URL = "{% url 'PMD:export_data_request_table' %}";
+			username = "{{ user.username }}";
 		</script>
 		
 		<!-- Include stylesheets -->
@@ -69,25 +70,31 @@
 	
 	<!-- User Tab definition --> 
 	<div id="user">
+		<div id="export_data_request_section" class="section" style="display: none;"></div>
 		{% if user.is_authenticated %}
-		<p>You are currently logged in as {{ user.username }} <button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></p>
+		<div><button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></div>
 		{% else %}
 		<form id="login_form" action="{% url 'PMD:login' %}" method="post">
 		{% csrf_token %}
 			<div class="section login_section">
 				<div class="section_title">
-					Please login
+					Members of ROB, please use your usual username/password
 				</div>
 				<div class="section_content">
 					<p>
-						<label> Members of ROB, please use your usual username/password</label>
 						{{ login_form.username.label_tag }}
 						{{ login_form.username }}
+					</p>
+					<p>
 						{{ login_form.password.label_tag }}
 						{{ login_form.password }}
 					</p>
+				</div>
+				<div class="section_title">
+					Others, please specify your email address (password is not necessary)
+				</div>
+				<div class="section_content">
 					<p>
-						<label> Others, please specify your email address (password is not necessary)</label>
 						{{ login_form.email.label_tag }}
 						{{ login_form.email }}
 					</p>
@@ -106,8 +113,8 @@
 		<div id="{{ form.data_series_name }}" class="tab_content">
 			<!-- {{ form.data_series_name }} search form -->
 			<div class="search_panel">
-				<form class="data_search_form" action="{% url 'PMD:result_table' form.data_series_name %}" method="get">
-					<div class="section specific_search_criteria">
+				<form class="data_search_form" action="{% url 'PMD:search_result_table' form.data_series_name %}" method="get">
+					<div id="{{ form.data_series_name }}_search_section" class="section specific_search_criteria">
 						<div class="section_title">
 							Select search criteria
 						</div>
@@ -121,8 +128,8 @@
 				</form>
 			</div>
 			<!-- {{ form.data_series_name }} search results -->
-			<div class="result_panel">
-				<div class="section result_section">
+			<div class="search_result_panel">
+				<div class="section search_result_section">
 					<div class="section_title">
 						<span class="ui-icon visual_indicator"></span>
 						Search results
@@ -130,24 +137,24 @@
 					<div class="section_content">
 						&#8592; Please make a search for data on the left.
 					</div>
-					<div class="actions result_actions">
-						<form action="{% url 'PMD:result_action' 'download_bundle' form.data_series_name %}" method="post">
+					<div class="actions search_result_actions">
+						<form action="{% url 'PMD:search_result_action' 'download_bundle' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="download_bundle" title="Download the selected data as a zip file">Download data</button>
 						</form>
-						<form action="{% url 'PMD:result_action' 'export_data' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:search_result_action' 'export_data' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="export_data" title="Export the selected data for download">Export data</button>
 						</form>
-						<form action="{% url 'PMD:result_action' 'export_keywords' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:search_result_action' 'export_keywords' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="export_keywords" title="Export the selected meta-data to a csv file">Export keywords</button>
 						</form>
-						<form action="{% url 'PMD:result_action' 'bring_online' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:search_result_action' 'bring_online' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="bring_online" title="Bring data online at ROB">Bring online</button>
 						</form>
-						<form action="{% url 'PMD:result_action' 'export_cutout' form.data_series_name %}" method="post">
+						<form action="{% url 'PMD:search_result_action' 'export_cutout' form.data_series_name %}" method="post">
 							{% csrf_token %}
 							<button class="export_cutout" title="Download a cutout of the selected data">Export cutout</button>
 						</form>

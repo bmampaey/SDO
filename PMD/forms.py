@@ -99,7 +99,7 @@ class DataSeriesSearchForm(forms.Form):
 			return EstimatedCountPaginator(query_set, limit, allow_empty_first_page = False, orphans = limit/2)
 
 	@classmethod
-	def get_result_table(cls, request_data):
+	def get_search_result_table(cls, request_data):
 		"""Return a dict with all the necessary info to create a table of results"""
 		# THIS COULD GO INTO THE VIEW
 		# import pdb; pdb.set_trace()

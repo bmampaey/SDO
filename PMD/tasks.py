@@ -90,9 +90,10 @@ def get_data(request):
 		if not check_file_exists(file_path):
 			download_data(request)
 			file_path = get_file_path(request, local_data_site = True)
-		else:
-			# If file exists, update the expiration date (in case it is later than current one)
-			LocalDataLocation.update_expiration_date(request, expiration_date)
+		
+		# If file exists, update the expiration date (in case it is later than current one)
+		elif request.expiration_date:
+			LocalDataLocation.update_expiration_date(request, request.expiration_date)
 	
 	return file_path
 
@@ -444,7 +445,7 @@ def create_SDO_synoptic_tree(config):
 	for date in dates:
 		for desc, record in record_sets[date].iteritems():
 			request = DataDownloadRequest.create_from_record(record)
-			link_path = os.path.join(root_folder, desc, date.strftime("%Y/%m/%d/%H"), record.filename())
+			link_path = os.path.join(root_folder, desc, date.strftime("%Y/%m/%d/%H"), record.filename)
 			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link), link_error = warn_admin_callback.s("Data download request %s failed", request))
 	
 	# We save the start date for the next run
@@ -498,7 +499,7 @@ def execute_export_data_request(request, paginator):
 		else:
 			data_download_request = DataDownloadRequest.create_from_record(record)
 			data_download_request.expiration_date = request.expiration_date
-			data_download_requests.append((data_download_request, os.path.join(request.export_path, record.filename())))
+			data_download_requests.append((data_download_request, os.path.join(request.export_path, record.filename)))
 	
 	# For each record we get the data and create a hard link
 	make_link_tasks = list()
@@ -510,7 +511,10 @@ def execute_export_data_request(request, paginator):
 	make_link_tasks_group.link_error = group(warn_admin_callback.s("Export data request %s succeeded", request) | update_request_status.s(request, "DONE").set(immutable=True))
 	make_link_tasks_group.link_error = group(warn_admin_callback.s("Export data request %s failed", request) | update_request_status.s(request, "FAILED").set(immutable=True))
 	
-	make_link_tasks_group()
+	# Start the task
+	async_result = make_link_tasks_group.delay()
+	
+	# TODO Save the task id in the request so that it can be canceled
 
 @app.task
 def execute_export_meta_data_request(request):

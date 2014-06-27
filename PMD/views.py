@@ -47,7 +47,7 @@ def index(request):
 
 # Assert we only have get
 @require_safe
-def result_table(request, data_series_name):
+def search_result_table(request, data_series_name):
 	#import pprint; print pprint.pformat(request.GET, depth=6)
 	#import pdb; pdb.set_trace()
 	
@@ -55,54 +55,28 @@ def result_table(request, data_series_name):
 	data_series_search_forms = DataSeriesSearchForm.sub_forms()
 	if data_series_name in data_series_search_forms:
 		try:
-			result_table = data_series_search_forms[data_series_name].get_result_table(request.GET)
+			search_result_table = data_series_search_forms[data_series_name].get_search_result_table(request.GET)
 		except Exception, why:
 			return HttpResponseBadRequest(str(why))
 	else:
 		return HttpResponseNotFound("Unknown data series %s" % data_series_name)
 	
 	# Send the response
-	return render(request, 'PMD/result_table.html', result_table)
+	return render(request, 'PMD/search_result_table.html', search_result_table)
+
 
 # Assert we only have get
 @require_safe
-@login_required
-def request_table(request):
-	#import pprint; print pprint.pformat(request.GET, depth=6)
-	#import pdb; pdb.set_trace()
-	# Verify user is authenticated and active
-	if not request.user.is_authenticated():
-		return HttpResponseForbidden("You must first login to get your export requests")
-	if not request.user.is_active:
-		return HttpResponseForbidden("Your account has been disabled, please contact sdoadmins@oma.be")
-	
-	# Get the request table
-	headers = ["Requested", "Data Series", "Size", "Expires", "Status"]
-	rows = list()
-	for export_data_request in ExportDataRequest.objects.filter(user = request.user):
-		rows.append({'request_id': export_data_request.id, 'ftp_path': export_data_request.ftp_path, 'fields': [
-			export_data_request.requested.strftime("%Y-%m-%d %H:%M:%S"),
-			export_data_request.data_series.name,
-			export_data_request.estimated_size(human_readable =True),
-			export_data_request.expiration_date.strftime("%Y-%m-%d %H:%M:%S"),
-			export_data_request.status
-		]})
-	
-	# Send the response
-	return render(request, 'PMD/request_table.html', {"headers": headers, "rows": rows})
-
-# Assert we only have get
-@require_safe
-def preview(request, data_series_name, recnum):
-	# Create the preview request
+def preview_data(request, data_series_name, recnum):
+	# Create a data download request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
 	print "found", data_series_name
 	record = get_object_or_404(data_series.record, recnum=recnum)
-	preview_request = DataDownloadRequest.create_from_record(record)
+	data_download_request = DataDownloadRequest.create_from_record(record)
 
-	# Execute the request
+	# Execute a preview task to get the path to the preview image
 	try:
-		path = get_preview(preview_request)
+		path = get_preview(data_download_request)
 	except Exception, why:
 		# In case of problem with the request return error message
 		print why
@@ -114,29 +88,29 @@ def preview(request, data_series_name, recnum):
 
 # Assert we only have get
 @require_safe
-def download(request, data_series_name, recnum):
-	# Create the preview request
+def download_data(request, data_series_name, recnum):
+	# Create a data download request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
 	print "found", data_series_name
 	record = get_object_or_404(data_series.record, recnum=recnum)
-	download_request = DataDownloadRequest.create_from_record(record)
+	data_download_request = DataDownloadRequest.create_from_record(record)
 	
-	# Execute the request
+	# Execute a get_data task to get the path to the data
 	try:
-		path = get_data(download_request)
+		path = get_data(data_download_request)
 	except Exception, why:
 		# In case of problem with the request return error message
 		return HttpResponseServerError(str(why))
 	else:
 		# Send the file
 		response = HttpResponse(open(path,"rb").read(), mimetype="application/x-download")
-		response["Content-Disposition"] = "attachment;filename="+record.filename()
+		response["Content-Disposition"] = "attachment;filename="+record.filename
 		return response
 
 # Assert we only have post and that we are logged in
 @require_POST
 @login_required
-def result_action(request, action_type, data_series_name):
+def search_result_action(request, action_type, data_series_name):
 	
 	# Verify user is authenticated and active
 	if not request.user.is_authenticated():
@@ -209,11 +183,8 @@ def export_data(request, data_series_name, recnums, paginator):
 	#execute_export_data_request.delay(export_data_request, paginator)
 	execute_export_data_request(export_data_request, paginator)
 	
-	# Save the task and request id into the user session, so that it can be canceled OR save the task id in the request
-	
-	
 	# Return message about request
-	return render(request, 'PMD/export_request_message.html',  { "ftp_path" : export_data_request.ftp_path })
+	return render(request, 'PMD/export_data_request_message.html',  { "ftp_path" : export_data_request.ftp_path })
 
 
 def export_keywords(request, data_series_name, recnums, paginator):
@@ -225,10 +196,38 @@ def bring_online(request, data_series_name, recnums, paginator):
 def export_cutout(request, data_series_name, recnums, paginator):
 	return HttpResponseNotFound("Not yet implemented")
 
-# Assert we only have post and that we are logged in
-@require_http_methods(["GET", "DELETE"])
+# Assert we only have get and that we are logged in
+@require_safe
 @login_required
-def delete_export_request(request, request_id):
+def export_data_request_table(request):
+	#import pprint; print pprint.pformat(request.GET, depth=6)
+	#import pdb; pdb.set_trace()
+	# Verify user is authenticated and active
+	if not request.user.is_authenticated():
+		return HttpResponseForbidden("You must first login to get your export requests")
+	if not request.user.is_active:
+		return HttpResponseForbidden("Your account has been disabled, please contact sdoadmins@oma.be")
+	
+	# Get the request table
+	headers = ["Requested", "Data Series", "Size", "Expires", "Status"]
+	rows = list()
+	for export_data_request in ExportDataRequest.objects.filter(user = request.user):
+		rows.append({'request_id': export_data_request.id, 'ftp_path': export_data_request.ftp_path, 'fields': [
+			export_data_request.requested.strftime("%Y-%m-%d %H:%M:%S"),
+			export_data_request.data_series.name,
+			export_data_request.estimated_size(human_readable =True),
+			export_data_request.expiration_date.strftime("%Y-%m-%d %H:%M:%S"),
+			export_data_request.status.lower()
+		]})
+	
+	# Send the response
+	return render(request, 'PMD/export_data_request_table.html', {"headers": headers, "rows": rows})
+
+
+# Assert we only have delete and that we are logged in
+#@require_http_methods(["DELETE"])
+@login_required
+def delete_export_data_request(request, request_id):
 	
 	# Verify user is authenticated and active
 	if not request.user.is_authenticated():

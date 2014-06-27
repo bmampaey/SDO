@@ -19,7 +19,7 @@ div.search_panel {
 	vertical-align: top;
 }
 
-div.result_panel {
+div.search_result_panel {
 	/* Put the 2 panels side by side if possible */
 	display: inline-block;
 	vertical-align: top;
@@ -52,17 +52,7 @@ form p * {
 	vertical-align: middle;
 }
 
-/* Login forms elements */
-form#login_form label {
-	width: 25em;
-	display: inline-block;
-	margin: 0.5em;
-	text-align: right;
-}
-
-
-/* Data search forms elements */
-form.data_search_form label {
+form label {
 	width: 10em;
 	display: inline-block;
 	margin: 0.5em;
@@ -82,28 +72,28 @@ form.data_search_form select[multiple] {
 	min-width: 4em;
 }
 
-/* Result actions forms */
+/* Search results actions forms */
 
-div.result_actions form{
+div.search_result_actions form{
  display: inline;
 }
 
-/* Table results */
+/* Tables */
 
-table.result_table>thead th{
+table>thead th{
 	min-height: 1em;
 	text-align: left;
 	padding: 0.2em 0.5em;
 }
 
-table.result_table>tbody td{
+table>tbody td{
 	text-align: right;
 	padding: 0.2em 0.5em;
 	border-right: 1px dotted black;
 	border-left: 1px dotted black;
 }
 
-/* Table buttons */
+/* Search result table buttons */
 div.page_navigation {
 	/* Push Select all and Unselect all buttons to the center */
 	text-align: center;
@@ -117,11 +107,6 @@ button.select_all>span.ui-button-text, button.unselect_all>span.ui-button-text {
 	font-size: small;
 }
 
-a.first_page, a.previous_page, a.next_page, a.last_page, a.download_fits, a.preview_image {
-	/* Make the buttons tiny squares */
-	height: 1em;
-	width: 1em;
-}
 
 a.previous_page {
 	/* Push buttons to the left */
@@ -133,11 +118,11 @@ a.next_page {
 	margin-left: 1em;
 }
 
-/* Icon buttons */
-button.help {
-	height: 1em;
-	width: 1em;
-	vertical-align: middle;
+/* Make icon buttons tiny squares */
+.small_button {
+	/* important to avoid jquery to override it */
+	height: 1em !important;
+	width: 1em !important;
 }
 
 /* Dialog boxes */
@@ -151,11 +136,11 @@ div.dialog_box p{
 }
 
 
-div.preview_image {
+div.preview_data {
 	text-align: center;
 }
 
-div.preview_image > img {
+div.preview_data > img {
 	height: 512px;
 	width: 512px;
 }

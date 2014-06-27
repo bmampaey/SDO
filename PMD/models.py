@@ -262,7 +262,7 @@ class LocalDataLocation(PMDDataLocation):
 		super(LocalDataLocation, cls).save_path(request, path)
 		if request.expiration_date:
 			data_location = cls.get_location(request)
-			data_loaction.expiration_date = request.expiration_date
+			data_location.expiration_date = request.expiration_date
 			data_location.save()
 	
 	@classmethod
@@ -357,7 +357,8 @@ class AiaLev1Record(PmdRecord):
 	
 	def __unicode__(self):
 		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
-		
+	
+	@property
 	def filename(self):
 		return "AIA.%s.%04d.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.wavelnth, self.segment)
 
@@ -381,6 +382,7 @@ class HmiIc45SRecord(PmdRecord):
 	def __unicode__(self):
 		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
 	
+	@property
 	def filename(self):
 		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
 
@@ -404,6 +406,7 @@ class HmiM45SRecord(PmdRecord):
 	def __unicode__(self):
 		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
 	
+	@property
 	def filename(self):
 		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
 
