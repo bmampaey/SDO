@@ -6,7 +6,7 @@ from PMD.api.api import v1_api
 
 urlpatterns = patterns('',
 	url(r'^$', views.index, name='index'),
-	url(r'^login$', views.login, name='login'),
+	url(r'^log_in_user$', views.log_in_user, name='log_in_user'),
 	url(r'^search_result_table/(?P<data_series_name>\w+)$', views.search_result_table, name='search_result_table'),
 	url(r'^preview_data/(?P<data_series_name>\w+)/(?P<recnum>\d+)$', views.preview_data, name='preview_data'),
 	url(r'^download_data/(?P<data_series_name>\w+)/(?P<recnum>\d+)$', views.download_data, name='download_data'),

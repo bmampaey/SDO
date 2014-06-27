@@ -9,57 +9,26 @@ from django.http import QueryDict
 # See http://django-tastypie.readthedocs.org/en/latest/paginator.html why it is important for postgres to have a special paginator
 from PMD.paginators import EstimatedCountPaginator
 from PMD.models import DataSeries
+from PMD.cadence_field import CadenceField
 
 MAX_NUMBER_ROWS = 20
 AIA_WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335, 1600, 1700, 4500]
 
 
 class LoginForm(forms.Form):
-	username = forms.CharField(required=False, widget=forms.TextInput(attrs={'placeholder': 'username'}))
-	password = forms.CharField(required=False, widget=forms.PasswordInput(attrs={'placeholder': 'password'}))
-	email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={'placeholder': 'my.email@address.com'}))
+	username = forms.CharField(required=True, widget=forms.TextInput(attrs={'placeholder': 'username'}))
+	password = forms.CharField(required=True, widget=forms.PasswordInput(attrs={'placeholder': 'password'}))
 
-
-class TimeRangeForm(forms.Form):
-	start_date = forms.DateTimeField(required=False, initial = datetime(2010, 03, 29))
-	#end_date = forms.DateTimeField(required=False, initial = datetime.utcnow())
-	end_date = forms.DateTimeField(required=False, initial = datetime(2010, 05, 15))
-	cadence = forms.IntegerField(required=False, min_value = 1)
-	cadence_multiplier = forms.TypedChoiceField(required=False, coerce=int, choices=[
-		(1,  "second(s)"),
-		(60, "minute(s)"),
-		(3600, "hour(s)"),
-		(86400, "day(s)")
-	])
-	
-	@classmethod
-	def initials(cls):
-		data = dict()
-		for name, field in cls.base_fields.iteritems():
-			data[name] = field.initial
-		return data
-
-	@classmethod
-	def get_time_range(cls, request_data):
-		"""Parse the time range from a request's data"""
-		
-		# Parse the request data
-		form = cls(request_data)
-		if not form.is_valid():
-			raise Exception(str(form.errors))
-		
-		# For each parameter we try to get the values from the form or else from the initials value
-		cleaned_data = cls.initials()
-		cleaned_data.update(form.cleaned_data)
-		
-		# Cadence could be specified as a multiple (for example of hours)
-		if cleaned_data['cadence'] and cleaned_data['cadence_multiplier']:
-			cleaned_data['cadence'] *= cleaned_data['cadence_multiplier']
-		
-		return cleaned_data
+class EmailLoginForm(forms.Form):
+	email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={'placeholder': 'my.email@address.com'}))
 
 class DataSeriesSearchForm(forms.Form):
 	""" Common class for all data series search form. Must be inherited for each data series """
+	start_date = forms.DateTimeField(required=False, initial = datetime(2010, 03, 29))
+	#end_date = forms.DateTimeField(required=False, initial = datetime.utcnow())
+	end_date = forms.DateTimeField(required=False, initial = datetime(2010, 05, 15))
+	cadence = CadenceField(required=False, min_value = 1)
+	
 	@classmethod
 	def sub_forms(cls):
 		return dict([(form.record_table, form) for form in cls.__subclasses__()])
@@ -82,9 +51,6 @@ class DataSeriesSearchForm(forms.Form):
 		# For each parameter we try to get the values from the form or else from the initials value
 		cleaned_data = cls.initials()
 		cleaned_data.update(form.cleaned_data)
-		
-		# Add the time range parameters
-		cleaned_data.update(TimeRangeForm.get_time_range(request_data))
 		
 		return cleaned_data
 	

@@ -21,6 +21,7 @@
 			CALENDAR_IMAGE_URL = "{% static 'PMD/images/calendar.png' %}";
 			LOADING_IMAGE_URL = "{% static 'PMD/images/loading.gif' %}";
 			EXPORT_DATA_REQUEST_TABLE_URL = "{% url 'PMD:export_data_request_table' %}";
+			LOGOUT_URL = "{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}";
 			username = "{{ user.username }}";
 		</script>
 		
@@ -30,30 +31,6 @@
 		<link rel="stylesheet" href="{% static 'PMD/css/sdo_wizard.css' %}" type="text/css">
 	</head>
 <body>
-
-<!-- Form for time range. It is outside of the tabs, but will be moved inside the current tab by jquery, so dates remain when moving between tabs -->
-<div class="section" id="time_range">
-	<div class="section_title">
-		Select time range and optional cadence
-	</div>
-	<div class="section_content">
-		<p> <!-- start date -->
-			{{ time_range_form.start_date.label_tag }}
-			{{ time_range_form.start_date }}
-		</p>
-		
-		<p> <!-- end date -->
-			{{ time_range_form.end_date.label_tag }}
-			{{ time_range_form.end_date }}
-		</p>
-		
-		<p> <!-- cadence -->
-			{{ time_range_form.cadence.label_tag }}
-			{{ time_range_form.cadence }}
-			{{ time_range_form.cadence_multiplier }}
-		</p>
-	</div>
-</div>
 
 <div id="tabs">
 	<!-- Tabs declaration -->
@@ -74,30 +51,20 @@
 		{% if user.is_authenticated %}
 		<div><button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></div>
 		{% else %}
-		<form id="login_form" action="{% url 'PMD:login' %}" method="post">
+		<form id="login_form" action="{% url 'PMD:log_in_user' %}" method="post">
 		{% csrf_token %}
 			<div class="section login_section">
 				<div class="section_title">
 					Members of ROB, please use your usual username/password
 				</div>
 				<div class="section_content">
-					<p>
-						{{ login_form.username.label_tag }}
-						{{ login_form.username }}
-					</p>
-					<p>
-						{{ login_form.password.label_tag }}
-						{{ login_form.password }}
-					</p>
+					{{ login_form.as_p }}
 				</div>
 				<div class="section_title">
 					Others, please specify your email address (password is not necessary)
 				</div>
 				<div class="section_content">
-					<p>
-						{{ login_form.email.label_tag }}
-						{{ login_form.email }}
-					</p>
+					{{ email_login_form.as_p }}
 				</div>
 				<div class="actions">
 					<button type="submit" id="login" title="Log in the application">Login</button>

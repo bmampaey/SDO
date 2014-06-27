@@ -26,7 +26,8 @@ class CadenceField(forms.fields.MultiValueField):
 			(86400, "day(s)")
 		])
 		required = kwargs.get("required", True)
-		fields = [forms.IntegerField(required = required, min_value = 1), forms.TypedChoiceField(required = required, coerce=int, choices=choices)]
+		min_value = kwargs.pop("min_value", 1)
+		fields = [forms.IntegerField(required = required, min_value = min_value), forms.TypedChoiceField(required = required, coerce=int, choices=choices)]
 		
 		super(CadenceField, self).__init__(fields=fields, *args, **kwargs)
 		

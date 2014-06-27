@@ -1,46 +1,57 @@
 from django.shortcuts import render, redirect, get_object_or_404, get_list_or_404
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseBadRequest, HttpResponseServerError, HttpResponseForbidden
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User, UserManager, Group
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_safe, require_POST, require_http_methods
 
 from PMD.models import DataSeries, DataDownloadRequest, ExportDataRequest
-from PMD.forms import TimeRangeForm, LoginForm, DataSeriesSearchForm
+from PMD.forms import LoginForm, EmailLoginForm, DataSeriesSearchForm
 from PMD.tasks import get_preview, get_data, execute_bring_online_request, execute_export_data_request, execute_export_meta_data_request
 
 # Assert we only have post
 @require_POST
-def login(request):
+def log_in_user(request):
+	# Check if we got username/password
 	form = LoginForm(request.POST)
-	if not form.is_valid():
-		return HttpResponseBadRequest(str(form.errors))
-	
-	if form.cleaned_data["username"] and form.cleaned_data["password"]:
+	if form.is_valid():
 		user = authenticate(username=form.cleaned_data["username"], password=form.cleaned_data["password"])
+		if user is None:
+			return HttpResponse("Invalid password", content_type="text/plain", status=401)
+		elif user.is_active:
+			login(request, user)
+			return HttpResponse(user.username)
+		else:
+			return HttpResponse("Your account is disabled. Please contact the website administrator", content_type="text/plain", status=401)
 	
-	elif form.cleaned_data["email"]:
-		pass
-	
-	else:
-		return HttpResponse("You must provide a username an password or an email", content_type="text/plain", status=401)
-	
-	if user is not None:
+	# Check if we got an email
+	form = EmailLoginForm(request.POST)
+	if form.is_valid():
+		# We split the email address to get the user
+		username, password = form.cleaned_data["email"].split("@", 1)
+		user = authenticate(username=username, password=password)
+		if user is None:
+			# Register the user
+			group = Group.objects.get("external_users")
+			UserManager.create_user(username, email=form.cleaned_data["email"], password=password, is_staff = False)
+			user = authenticate(username=username, password=password)
 		if user.is_active:
 			login(request, user)
-			# Send the table of request
+			return HttpResponse(user.username)
 		else:
 			return HttpResponse("Your account is disabled. Please contact the website administrator", content_type="text/plain", status=401)
 	else:
-		return HttpResponse("Invalid password", content_type="text/plain", status=401)
+		return HttpResponseBadRequest(str(form.errors))
+
 
 # Assert we only have get
 @require_safe
 def index(request):
 	data_series_search_forms = DataSeriesSearchForm.sub_forms()
 	context = {
-		'time_range_form' : TimeRangeForm(label_suffix=''),
-		'data_series_search_forms': [data_series_search_forms[name](label_suffix='') for name in sorted(data_series_search_forms)],
 		'login_form': LoginForm(label_suffix=''),
+		'email_login_form': EmailLoginForm(label_suffix=''),
+		'data_series_search_forms': [data_series_search_forms[name](label_suffix='') for name in sorted(data_series_search_forms)],
 	}
 	
 	return render(request, 'PMD/index.html', context)

@@ -137,7 +137,7 @@ function load_search_result_table(search_result_section, table_url)
 	// Make the request and save it
 	var request = latest_search_request[data_series_name] = $.get(table_url);
 	
-	// For clearer login
+	// For clearer logging
 	request.uid = data_series_name + " - " +(new Date()).toJSON();
 	
 	// Success
@@ -313,7 +313,7 @@ function load_request_table(table_url, post_load_request_table)
 	// Make the request and save it
 	var request = $.get(table_url);
 	
-	// For clearer login
+	// For clearer logging
 	request.uid = (new Date()).toJSON();
 	
 	// Success
@@ -450,7 +450,20 @@ function load_events_handlers()
 		e.preventDefault();
 		var form = $(e.target);
 		log("submit form action: ", form.attr("action"), "query: ", form.serialize());
-		do_login(form.attr("action") + "?" + form.serialize());
+		$.post(form.attr("action"), form.serialize())
+		.done(function(response){
+			log("login SUCCEEDED response: ", response);
+			// TODO load request and logout button
+			username = response;
+			$("li#user_tab>a").text(username); 
+			$("form#login_form").remove();
+			$("#tabs").tabs( "option", "active" , -1);
+			$("div#user").append("<div><button id='logout' title='Log out of the application' href='"+LOGOUT_URL+"'>Logout</button></div>")
+		})
+		.fail(function(request, status){
+			log("login FAILED response: ", request.responseText);
+			alert_user(request.responseText);
+		});
 	});	
 	
 	// Transform the search form to do ajax request instead
