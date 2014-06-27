@@ -43,13 +43,14 @@ function alert_user(message, box)
 	log("alert_user message: ", message);
 	if(box == null)
 	{
-		box = $('<div><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
+		box = $('<div><span class="ui-icon ui-icon-alert" style="float: left; margin-right: 0.3em;">Alert:</span>' + message + '</div>');
 		box.dialog({
 			modal: true,
 			draggable: false,
 			title: "Error",
 			resizable: false,
-			dialogClass: "ui-state-error",
+			width: "auto",
+			dialogClass: "ui-state-error dialog_box",
 			buttons: {
 				Ok: function() {
 					$( this ).dialog( "close" );
@@ -70,13 +71,14 @@ function inform_user(message, box)
 	log("inform_user message: ", message);
 	if(box == null)
 	{
-		box = $('<div><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Note:</span>' + message + '</div>');
+		box = $('<div><span class="ui-icon ui-icon-info" style="float: left; margin-right: 0.3em;">Info:</span>' + message + '</div>');
 		box.dialog({
 			modal: false,
 			draggable: false,
 			title: "Note",
 			resizable: false,
-			dialogClass: "ui-state-highlight",
+			width: "auto",
+			dialogClass: "ui-state-highlight dialog_box",
 			buttons: [
 				{
 					text: "Ok",
@@ -272,14 +274,17 @@ function preview_image(button, image_link, title)
 	button.addClass('ui-button-disabled ui-state-disabled');
 
 	// Create a dialog box with a default loading image (while the real while is being created)
-	var box = $('<div class="ui-state-highlight preview_image"><img src="' + LOADING_IMAGE_URL + '"/></div>');
+	var box = $('<div class="preview_image"><img src="' + LOADING_IMAGE_URL + '"/><p>Preview images are generated on the fly, please be patient.</p></div>');
 	box.dialog({
 			modal: false,
 			width: 580,
 			title: title || button.attr("title"),
 			draggable: true,
 			resizable: true,
-			close: function(event, ui) {$( this ).remove(); button.removeClass('ui-button-disabled ui-state-disabled');},
+			dialogClass: "ui-state-highlight",
+			close: function(event, ui) {
+				$( this ).remove(); button.removeClass('ui-button-disabled ui-state-disabled');
+			},
 	});
 
 	// Change the image to the preview. The image switch will append automatically when the good image is available.

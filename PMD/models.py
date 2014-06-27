@@ -188,12 +188,12 @@ class PMDDataLocation(models.Model):
 		return u"%s %s" % (self.data_series, self.recnum)
 	
 	@classmethod
-	def _get_location(cls, request):
+	def get_location(cls, request):
 		return cls.objects.get(data_series = request.data_series, recnum = request.recnum)
 	
 	@classmethod
 	def get_file_path(cls, request):
-		data_location = cls._get_location(request)
+		data_location = cls.get_location(request)
 		return data_location.path
 	
 	@classmethod
@@ -220,7 +220,7 @@ class LocalDataLocation(PMDDataLocation):
 	
 	@classmethod
 	def has_expired(cls, request):
-		data_location = cls._get_location(request)
+		data_location = cls.get_location(request)
 		if data_location.expiration_date > datetime.now():
 			return False
 		else:
@@ -228,8 +228,18 @@ class LocalDataLocation(PMDDataLocation):
 	
 	@classmethod
 	def last_requested(cls, request):
-		data_location = cls._get_location(request)
+		data_location = cls.get_location(request)
 		return data_location.last_request_date
+	
+	@classmethod
+	def update_expiration_date(cls, request, expiration_date = None, force = False):
+		data_location = cls.get_location(request)
+		# If expiration_date is None, it will increase the expiration date by the default retention time
+		if force or expiration_date is None or data_location.expiration_date < expiration_date:
+			data_location.expiration_date = expiration_date
+			data_location.save()
+		
+		return data_location.expiration_date
 	
 	@classmethod
 	def create_location(cls, request):
@@ -241,7 +251,7 @@ class LocalDataLocation(PMDDataLocation):
 	@classmethod
 	def get_file_path(cls, request):
 		# For local data location we update the request date
-		data_location = cls._get_location(request)
+		data_location = cls.get_location(request)
 		data_location.last_request_date = datetime.now()
 		data_location.save()
 		return data_location.path
@@ -251,7 +261,7 @@ class LocalDataLocation(PMDDataLocation):
 		# For local data location we set the expiration date
 		super(LocalDataLocation, cls).save_path(request, path)
 		if request.expiration_date:
-			data_location = cls._get_location(request)
+			data_location = cls.get_location(request)
 			data_loaction.expiration_date = request.expiration_date
 			data_location.save()
 	
@@ -259,7 +269,7 @@ class LocalDataLocation(PMDDataLocation):
 	def delete_location(cls, request):
 		# We allow that the data location does not exist
 		try:
-			data_location = cls._get_location(request)
+			data_location = cls.get_location(request)
 		except cls.DoesNotExist:
 			return
 		data_location.delete()
@@ -277,12 +287,12 @@ class DrmsDataLocation(models.Model):
 		return u"%s D%d" % (self.data_series, self.sunum)
 	
 	@classmethod
-	def _get_location(cls, request):
+	def get_location(cls, request):
 		return cls.objects.get(sunum = request.sunum)
 	
 	@classmethod
 	def get_file_path(cls, request):
-		data_location = cls._get_location(request)
+		data_location = cls.get_location(request)
 		return os.path.join(data_location.path, "S%05d" % request.slotnum, request.segment)
 	
 	@classmethod
@@ -469,6 +479,7 @@ class ExportDataRequest(models.Model):
 	user = models.ForeignKey(User, on_delete=models.DO_NOTHING)
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.DO_NOTHING, db_column = "data_series_name")
 	recnums = BigIntegerArrayField(help_text = "List of recnums to export")
+	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the request.", blank=False, null=False)
 	status = models.CharField(help_text = "Request status.", max_length=8, blank=False, null=False, default = "NEW")
 	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now())
 	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
@@ -477,8 +488,36 @@ class ExportDataRequest(models.Model):
 		db_table = "export_data_request"
 		verbose_name = "Export data request"
 	
+	def save(self, *args, **kwargs):
+		if self.expiration_date is None:
+			self.expiration_date = self.requested + GlobalConfig.get("default_request_retention_time", timedelta(days=60))
+		super(ExportDataRequest, self).save(*args, **kwargs)
+	
+	@property
+	def name(self):
+		return self.requested.strftime("%Y%m%d_%H%M%S")
+	
 	@property
 	def export_path(self):
 		cache = GlobalConfig.get("export_cache")
-		path = os.path.join(cache, self.user.username, self.data_series.name, self.requested.strftime("%Y%m%d_%H%M%S"))
+		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
 		return path
+	
+	@property
+	def ftp_path(self):
+		cache = GlobalConfig.get("export_ftp_url")
+		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
+		return path
+	
+	def estimated_size(self, human_readable = False):
+		size = self.data_series.record.average_file_size * len(self.recnums)
+		if human_readable:
+			for suffix in ["B", "KB", "MB", "GB", "TB"]: 
+				if size >= 1024:
+					size/=1024
+				else:
+					break
+			return "%d %s" % (size, suffix)
+		else:
+			return size
+			

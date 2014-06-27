@@ -20,6 +20,7 @@
 		<script type="text/javascript" charset="utf-8">
 			CALENDAR_IMAGE_URL = "{% static 'PMD/images/calendar.png' %}";
 			LOADING_IMAGE_URL = "{% static 'PMD/images/loading.gif' %}";
+			USERNAME = "{{ user.username }}";
 		</script>
 		
 		<!-- Include stylesheets -->
@@ -72,18 +73,28 @@
 		<p>You are currently logged in as {{ user.username }} <button id="logout" title="Log out of the application" href="{% url 'accounts:django.contrib.auth.views.logout' %}?next={% url 'PMD:index' %}">Logout</button></p>
 		{% else %}
 		<form id="login_form" action="{% url 'PMD:login' %}" method="post">
-			{% csrf_token %}
-			<p>
-				{{ login_form.email.label_tag }}
-				{{ login_form.email }}
-			</p>
-			<p>
-				{{ login_form.username.label_tag }}
-				{{ login_form.username }}
-				{{ login_form.password }}
-			</p>
-			<div class="actions">
-			<button type="submit" id="login" title="Log in the application">Login</button>
+		{% csrf_token %}
+			<div class="section login_section">
+				<div class="section_title">
+					Please login
+				</div>
+				<div class="section_content">
+					<p>
+						<label> Members of ROB, please use your usual username/password</label>
+						{{ login_form.username.label_tag }}
+						{{ login_form.username }}
+						{{ login_form.password.label_tag }}
+						{{ login_form.password }}
+					</p>
+					<p>
+						<label> Others, please specify your email address (password is not necessary)</label>
+						{{ login_form.email.label_tag }}
+						{{ login_form.email }}
+					</p>
+				</div>
+				<div class="actions">
+					<button type="submit" id="login" title="Log in the application">Login</button>
+				</div>
 			</div>
 		</form>
 		{% endif %}
@@ -100,12 +111,12 @@
 						<div class="section_title">
 							Select search criteria
 						</div>
-							<div class="section_content">
-							{{ form.as_p }}
-							</div>
-							<div class="actions search_actions">
-								<button type="submit" class="search_data" title="Search data">Search data</button>
-							</div>
+						<div class="section_content">
+						{{ form.as_p }}
+						</div>
+						<div class="actions search_actions">
+							<button type="submit" class="search_data" title="Search data">Search data</button>
+						</div>
 					</div>
 				</form>
 			</div>

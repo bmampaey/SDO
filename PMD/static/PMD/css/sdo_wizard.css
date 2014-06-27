@@ -141,21 +141,15 @@ button.help {
 }
 
 /* Dialog boxes */
-/*
-div.dialog_box label {
-	margin-top: 0.5em;
-	display: block;
-	vertical-align: middle;
-	line-height: 150%;
+
+div.dialog_box {
+	max-width: 40em;
 }
 
-p.search_message {
-	min-height: 3em;
-	padding: 0.4em 1em;
-	margin: 1em 0;
+div.dialog_box p{
+	margin-bottom: 1em;
 }
 
-*/
 
 div.preview_image {
 	text-align: center;

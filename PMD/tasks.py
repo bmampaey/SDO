@@ -10,7 +10,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
 from django.conf import settings
 from django.db import transaction
 
-from celery import Celery, chord
+from celery import Celery, group
 from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 
@@ -86,10 +86,13 @@ def get_data(request):
 		download_data(request)
 		file_path = get_file_path(request, local_data_site = True)
 	else:
-		# TODO if file exists but have a higher retention date then increase
+		# Check that the file really exists
 		if not check_file_exists(file_path):
 			download_data(request)
 			file_path = get_file_path(request, local_data_site = True)
+		else:
+			# If file exists, update the expiration date (in case it is later than current one)
+			LocalDataLocation.update_expiration_date(request, expiration_date)
 	
 	return file_path
 
@@ -468,11 +471,11 @@ def get_preview(request):
 
 @app.task
 def execute_export_data_request(request, paginator):
-	
+	#import pdb; pdb.set_trace()
 	# Add the recnums from the paginator to the request
 	if paginator is not None:
 		recnums = list()
-		for page_number in paginator.page_range():
+		for page_number in paginator.page_range:
 			try:
 				page = paginator.page(page_number)
 			except EmptyPage:
@@ -484,8 +487,8 @@ def execute_export_data_request(request, paginator):
 	log.debug("Found %s records to download", len(request.recnums))
 	update_request_status(request, "RUNNING")
 	
-	# Make the list of download_requests
-	download_requests = list()
+	# Make the list of data_download_requests
+	data_download_requests = list()
 	for recnum in request.recnums[:]:
 		try:
 			record = request.data_series.record.objects.get(recnum = recnum)
@@ -493,13 +496,21 @@ def execute_export_data_request(request, paginator):
 			log.error("Export data request %s has an invalid recnum %s", request.id, recnum)
 			request.recnums.remove(recnum)
 		else:
-			download_requests.append(DataDownloadRequest.create_from_record(record))
+			data_download_request = DataDownloadRequest.create_from_record(record)
+			data_download_request.expiration_date = request.expiration_date
+			data_download_requests.append((data_download_request, os.path.join(request.export_path, record.filename())))
 	
-	for download_request in download_requests:
-		get_data.s(download_request).apply_async()
-	# TODO Make a chord or make a group signature and call it with apply_async?
-	# Needs to send a mail in any case
-	#	res = chord((add.s(i, i) for i in xrange(10)), xsum.s())()
+	# For each record we get the data and create a hard link
+	make_link_tasks = list()
+	for data_download_request, link_path in data_download_requests:
+		make_link_tasks.append(get_data.s(data_download_request) | create_link.s(link_path, soft = False))
+	#import pdb; pdb.set_trace()
+	# Execute all the link tasks in parralel, then mark status as done and send email
+	make_link_tasks_group = group(make_link_tasks)
+	make_link_tasks_group.link_error = group(warn_admin_callback.s("Export data request %s succeeded", request) | update_request_status.s(request, "DONE").set(immutable=True))
+	make_link_tasks_group.link_error = group(warn_admin_callback.s("Export data request %s failed", request) | update_request_status.s(request, "FAILED").set(immutable=True))
+	
+	make_link_tasks_group()
 
 @app.task
 def execute_export_meta_data_request(request):
