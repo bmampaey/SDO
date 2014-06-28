@@ -4,7 +4,6 @@ from django.http import HttpResponse
 # Create your views here.
 
 from DRMS.models import DRMSDataSeries
-import simplejson
 
 def data_series_list(request):
 	data_series = get_list_or_404(DRMSDataSeries)

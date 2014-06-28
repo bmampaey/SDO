@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404, get_list_or_404
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseBadRequest, HttpResponseServerError, HttpResponseForbidden
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login as user_login
 from django.contrib.auth.models import User, UserManager, Group
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_safe, require_POST, require_http_methods
@@ -11,7 +11,7 @@ from PMD.tasks import get_preview, get_data, execute_bring_online_request, execu
 
 # Assert we only have post
 @require_POST
-def log_in_user(request):
+def login(request):
 	# Check if we got username/password
 	form = LoginForm(request.POST)
 	if form.is_valid():
@@ -19,7 +19,7 @@ def log_in_user(request):
 		if user is None:
 			return HttpResponse("Invalid password", content_type="text/plain", status=401)
 		elif user.is_active:
-			login(request, user)
+			user_login(request, user)
 			return HttpResponse(user.username)
 		else:
 			return HttpResponse("Your account is disabled. Please contact the website administrator", content_type="text/plain", status=401)
@@ -36,7 +36,7 @@ def log_in_user(request):
 			UserManager.create_user(username, email=form.cleaned_data["email"], password=password, is_staff = False)
 			user = authenticate(username=username, password=password)
 		if user.is_active:
-			login(request, user)
+			user_login(request, user)
 			return HttpResponse(user.username)
 		else:
 			return HttpResponse("Your account is disabled. Please contact the website administrator", content_type="text/plain", status=401)
