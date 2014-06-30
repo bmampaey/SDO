@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import absolute_import
-import sys, os, errno
+import sys, os, errno, socket
 from datetime import datetime, timedelta, date
 
 # This should go
@@ -13,6 +13,8 @@ from django.db import transaction
 from celery import Celery, group
 from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
+
+import csv
 
 log = get_task_logger("test")
 app = Celery('app', broker='amqp://', backend='amqp://')
@@ -34,6 +36,11 @@ app.conf.update(
 	CELERY_DISABLE_RATE_LIMITS = True, # To be removed if we set a rate limit on some tasks
 	CELERY_TIMEZONE = 'Europe/Brussels',
 	CELERYBEAT_SCHEDULE = celery_beat_schedule,
+	# Set up emails
+	CELERY_SEND_TASK_ERROR_EMAILS = True,
+	ADMINS = [('Benjamin Mampaey', 'benjamin.mampaey@oma.be'),],
+	SERVER_EMAIL = 'SDO_deamon@' + socket.gethostname(),
+	EMAIL_HOST = 'smtp.oma.be',
 )
 
 from PMD.models import GlobalConfig, DataSite, DataSeries, LocalDataLocation
@@ -44,6 +51,8 @@ from PMD.celery_tasks.DrmsDataLocator import DrmsDataLocator
 from PMD.routines.update_fits_header import update_fits_header
 from PMD.routines.create_png import create_png
 
+# TODO add soft limit to requests http://celery.readthedocs.org/en/latest/userguide/workers.html#time-limits
+# http://celery.readthedocs.org/en/latest/userguide/tasks.html#retrying
 # TODO: if data download fails because location is incorrect allow for a get_data_location and a new essay to download the file
 # Create Data - Execute a DataDownloadRequest
 @app.task
@@ -106,7 +115,7 @@ def update_file_meta_data(request):
 	file_path = get_file_path(request, local_data_site = True)
 	
 	# Get the new meta data
-	header_values = request.data_series.get_header_values(request)
+	header_values = request.data_series.get_header_values(request.recnum)
 	header_units = request.data_series.get_header_units()
 	header_comments = request.data_series.get_header_comments()
 	
@@ -292,7 +301,7 @@ def warn_admin_callback(task_id, message = "", *args):
 def execute_data_download_requests():
 	log.debug("execute_data_download_requests")
 	
-	request_timeout = GlobalConfig.get("data_download_request_timeout")
+	request_timeout = GlobalConfig.get("data_download_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
 	# So open a transaction and lock the rows in nowait
@@ -314,7 +323,7 @@ def execute_data_download_requests():
 def execute_data_location_requests():
 	log.debug("execute_data_location_requests")
 	
-	request_timeout = GlobalConfig.get("data_location_request_timeout")
+	request_timeout = GlobalConfig.get("data_location_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
 	# So open a transaction and lock the rows in nowait
@@ -336,7 +345,7 @@ def execute_data_location_requests():
 def execute_data_delete_requests():
 	log.debug("execute_data_delete_requests")
 	
-	request_timeout = GlobalConfig.get("data_delete_request_timeout")
+	request_timeout = GlobalConfig.get("data_delete_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
 	# So open a transaction and lock the rows in nowait
@@ -348,7 +357,7 @@ def execute_data_delete_requests():
 				delete_data.apply_async((request, ), link=update_request_status.si(request, "DONE"), link_error = warn_admin_callback.s("Data delete request %s failed", request))
 			
 			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request_timeout is not None and datetime.now() - request.updated > request_timeout:
+			elif request.status == "RUNNING" and datetime.now() - request.updated > request_timeout:
 				warn_admin.delay("The following request %s has been running since %s and passed it's timeout %s", request, request.updated, data_download_request_timeout)
 			
 			elif request.status == "DONE":
@@ -359,7 +368,7 @@ def execute_data_delete_requests():
 def execute_meta_data_update_requests():
 	log.debug("execute_meta_data_update_requests")
 	
-	request_timeout = GlobalConfig.get("meta_data_update_request_timeout")
+	request_timeout = GlobalConfig.get("meta_data_update_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
 	# So open a transaction and lock the rows in nowait
@@ -404,20 +413,12 @@ def create_SDO_synoptic_tree(config):
 	"""
 	log.debug("create_SDO_synoptic_tree %s", config)
 	
-	root_folder = GlobalConfig.get(config + "_root_folder")
-	if root_folder is None:
-		raise Exception("create_SDO_synoptic_tree: root_folder for %s is not configured" % config)
-	
-	frequency = GlobalConfig.get(config + "_frequency")
-	if frequency is None:
-		raise Exception("create_SDO_synoptic_tree: frequency for %s is not configured" % config)
-	
-	start_date = GlobalConfig.get(config + "_start_date")
-	if start_date is None:
-		start_date = datetime(2010, 02, 11) # SDO was launched on 11th of February 2010
-		log.info("Start date not specified. Creating the SDO synoptic tree from beggining %s", start_date)
-	
+	root_folder = GlobalConfig.get_or_warn(config + "_root_folder")
+	frequency = GlobalConfig.get_or_warn(config + "_frequency")	
 	soft_link = GlobalConfig.get(config + "_soft_link", False)
+	start_date = GlobalConfig.get(config + "_start_date", datetime(2010, 02, 11))
+	if start_date  <= datetime(2010, 02, 11):
+		log.info("Creating the SDO synoptic tree from beggining %s", start_date)
 	
 	data_series_desc = dict()
 	
@@ -456,7 +457,7 @@ def create_SDO_synoptic_tree(config):
 @app.task
 def get_preview(request):
 	# Check if the previews already exists 
-	cache = GlobalConfig.get("preview_cache")
+	cache = GlobalConfig.get_or_warn("preview_cache")
 	image_path = os.path.splitext(os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment)))[0] + ".png"
 	if os.path.exists(image_path):
 		return image_path
@@ -470,12 +471,20 @@ def get_preview(request):
 	
 	return image_path
 
+# TODO add soft limit to requests http://celery.readthedocs.org/en/latest/userguide/workers.html#time-limits
 @app.task
 def execute_export_data_request(request, paginator):
+	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
 	#import pdb; pdb.set_trace()
+	
+	# To avoid user filling up our system, we check that the request is reasonable
+	max_export_data_request_size =  GlobalConfig.get("max_export_data_request_size", 100 * 1024 * 1024 * 1024)
+	if request.estimated_size() > max_export_data_request_size:
+		update_request_status(request, "TOO BIG")
+		raise Exception("User request %s is larger than maximum allowed size") 
+	
 	# Add the recnums from the paginator to the request
 	if paginator is not None:
-		recnums = list()
 		for page_number in paginator.page_range:
 			try:
 				page = paginator.page(page_number)
@@ -484,6 +493,9 @@ def execute_export_data_request(request, paginator):
 			else:
 				for obj in page.object_list:
 					request.recnums.append(obj.recnum)
+				if request.estimated_size() > max_export_data_request_size:
+					update_request_status(request, "TOO BIG")
+					raise Exception("User request %s is larger than maximum allowed size") 
 	
 	log.debug("Found %s records to download", len(request.recnums))
 	update_request_status(request, "RUNNING")
@@ -514,17 +526,53 @@ def execute_export_data_request(request, paginator):
 	# Start the task
 	async_result = make_link_tasks_group.delay()
 	
-	# TODO Save the task id in the request so that it can be canceled
+	# Save the task id into the request to allow easy cancel
+	request.task_id = async_result.id
+	request.save()
+
 
 @app.task
-def execute_export_meta_data_request(request):
-	pass
-
-@app.task
-def execute_bring_online_request(request):
-	pass
-
-
+def execute_export_meta_data_request(request, paginator):
+	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
+	
+	# Add the recnums from the paginator to the request
+	if paginator is not None:
+		for page_number in paginator.page_range:
+			try:
+				page = paginator.page(page_number)
+			except EmptyPage:
+				pass
+			else:
+				for obj in page.object_list:
+					request.recnums.append(obj.recnum)
+	
+	log.debug("Found %s records", len(request.recnums))
+	update_request_status(request, "RUNNING")
+	
+	# Create the directory tree
+	try:
+		os.makedirs(os.path.dirname(request.export_path))
+	except OSError, why:
+		if why.errno != errno.EEXIST:
+			raise
+	
+	# Write the csv file
+	try:
+		with open(request.export_path, 'wb') as csvfile:
+			writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
+			columns = request.data_series.get_header_keywords()
+			writer.writerow(columns)
+			for recnum in request.recnums:
+				values = request.data_series.get_header_values(recnum)
+				writer.writerow([values[column] for column in columns])
+	except Exception, why:
+		log.error("Could not write csv file %s: %s", request.export_path, why)
+		update_request_status(request, "FAILED")
+		# TODO send mail to user
+	else:
+		log.info("Succesfully wrote csv file for request %s to %s ", request, request.export_path)
+		update_request_status(request, "SUCCESS")
+		# TODO send mail to user
 
 if __name__ == '__main__':
 	app.start()

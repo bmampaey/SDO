@@ -6,6 +6,7 @@ TODO
 debug = true;
 selections = {};
 latest_search_request = {};
+username = USERNAME;
 
 // Set implementation
 var Set = function() {};
@@ -13,6 +14,7 @@ Set.prototype.add = function(o) { this[o] = true; };
 Set.prototype.remove = function(o) { delete this[o]; };
 Set.prototype.values = function() { return Object.keys(this); };
 
+// Logging function, log to console if available, else log to overlay
 function log(a, b, c, d, e)
 {
 	if(debug)
@@ -35,10 +37,9 @@ function log(a, b, c, d, e)
 	}
 }
 
-
+// Display a pop up with an error message or write it to the box if provided.
 function alert_user(message, box)
 {
-	// Display a pop up with an error message or write it to the box if provided.
 	log("alert_user message: ", message);
 	if(box == null)
 	{
@@ -64,9 +65,9 @@ function alert_user(message, box)
 	}
 }
 
+// Display a pop up with a informational message or write it to the box if provided
 function inform_user(message, box)
 {
-	// Display a pop up with a informational message or write it to the box if provided
 	log("inform_user message: ", message);
 	if(box == null)
 	{
@@ -96,34 +97,70 @@ function inform_user(message, box)
 	}
 }
 
+// Retrieve the data series name for any object
 function get_data_series_name(object)
 {
 	return $(object).closest("div.tab_content").attr("id");
 }
 
-function select_all(table)
+// Select all checkboxes in a table and update the selection
+function select_all(table, selection)
 {
 	log("select_all");
 	$("input:checkbox", table).each(function(){$(this).prop('checked', true);});
-	var data_series_name = get_data_series_name(table);
-	selections[data_series_name].all_selected = true;
-	selections[data_series_name].selected = new Set();
+	selection.all_selected = true;
+	selection.selected = new Set();
 }
 
-function unselect_all(table)
+// De-select all checkboxes in a table and update the selection
+function unselect_all(table, selection)
 {
 	log("unselect_all");
 	$("input:checkbox", table).each(function(){$(this).prop('checked', false);});
-	var data_series_name = get_data_series_name(table);
-	selections[data_series_name].all_selected = false;
-	selections[data_series_name].selected = new Set();
+	selection.all_selected = false;
+	selection.selected = new Set();
 }
 
-
-function load_search_result_table(search_result_section, table_url)
+// Update selection from selected checkboxes in a table
+function update_selection_from_table(table, selection)
 {
-	// Make an ajax request to table_url and load the search results to search_result_section
-	var data_series_name = get_data_series_name(search_result_section);
+	if(selection.all_selected)
+	{
+		$("input:checkbox:not(:checked)", table).each(function(){selection.selected.add(this.value);});
+	}
+	else
+	{
+		$("input:checkbox:checked", table).each(function(){selection.selected.add(this.value);});
+	}
+}
+
+// Select checkboxes in a table from the selection
+function update_table_from_selection(table, selection)
+{
+	if(selection.all_selected)
+	{
+		$("input:checkbox", table).prop("checked", true).each(function(){
+			if(this.value in selection.selected)
+			{
+				$(this).prop("checked", false);
+			}
+		});
+	}
+	else // Do the opposite
+	{
+		$("input:checkbox", table).prop("checked", false).each(function(){
+			if(this.value in selection.selected)
+			{
+				$(this).prop("checked", true);
+			}
+		});
+	}
+}
+
+// Make an ajax request to table_url and load the search results to section content
+function load_search_result_table(section, table_url)
+{
+	var data_series_name = get_data_series_name(section);
 	log("load_search_result_table url: ", table_url, "data_series_name: ", data_series_name);
 	
 	// Abort the last search request in case it is still running
@@ -149,9 +186,9 @@ function load_search_result_table(search_result_section, table_url)
 		{
 			log("Updating search result section for data series: ", data_series_name, "Request matches latest search request : ", request.uid, latest_search_request[data_series_name].uid);
 			
-			$("div.section_content", search_result_section).html(response);
-			post_load_search_result_table(search_result_section);
-			$("div.section_title span.visual_indicator", search_result_section).removeClass('ui-icon-loading ui-icon-alert').addClass('ui-icon-check').attr("title", "Table has been updated");
+			$("div.section_content", section).html(response);
+			post_load_search_result_table(section);
+			$("div.section_title span.visual_indicator", section).removeClass('ui-icon-loading ui-icon-alert').addClass('ui-icon-check').attr("title", "Table has been updated");
 		}
 		else
 		{
@@ -165,62 +202,56 @@ function load_search_result_table(search_result_section, table_url)
 		if (status == "abort")
 		{
 			inform_user("Your previous search for data series "+ data_series_name + " was aborted!");
-			$("div.section_title span.visual_indicator", search_result_section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Previous search was aborted");
+			$("div.section_title span.visual_indicator", section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Previous search was aborted");
 		}
 		else
 		{
 			alert_user(request.responseText);
-			$("div.section_title span.visual_indicator", search_result_section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Table has NOT been updated");
+			$("div.section_title span.visual_indicator", section).removeClass('ui-icon-loading ui-icon-check').addClass('ui-icon-alert').attr("title", "Table has NOT been updated");
 		}
 	});
 	
 	// Add a visual indication that the search request was submited
-	$("div.section_title span.visual_indicator", search_result_section).removeClass('ui-icon-check ui-icon-alert').addClass('ui-icon-loading').attr("title", "Table is being updated");
+	$("div.section_title span.visual_indicator", section).removeClass('ui-icon-check ui-icon-alert').addClass('ui-icon-loading').attr("title", "Table is being updated");
 	
 }
 
-function post_load_search_result_table(search_result_section)
+// Set-up the section after the load
+function post_load_search_result_table(section)
 {
-		
-	var data_series_name = get_data_series_name(search_result_section);
+	var data_series_name = get_data_series_name(section);
 	log("post_load_search_result_table data_series_name: ", data_series_name);
 	
 	// Transform download_data anchors to button
-	$('a.download_data', search_result_section).button({icons: {primary: "ui-icon-arrowthickstop-1-s"}, text:false}).click(function(e){
-		e.preventDefault();
-		download_data($(this), $(this).attr("href"));
+	$('a.download_data', section).button({icons: {primary: "ui-icon-arrowthickstop-1-s"}, text:false}).click(function(e){
+		// Change the color of the icon so user knows what he already downloaded
+		$(this).addClass('ui-button-disabled ui-state-disabled');
 	});
 	
 	// Transform preview_data anchors to button
-	$('a.preview_data', search_result_section).button({icons: {primary: "ui-icon-image"}, text:false}).click(function(e){
+	$('a.preview_data', section).button({icons: {primary: "ui-icon-image"}, text:false}).click(function(e){
 		e.preventDefault();
 		preview_data($(this), $(this).attr("href"), $(this).attr("img_title"));
 	});
 	
 	// Transform navigation anchors to buttons
-	$('a.first_page', search_result_section).button({icons: {primary: "ui-icon-seek-first"}, text:false});
-	$('a.previous_page', search_result_section).button({icons: {primary: "ui-icon-seek-prev"}, text:false});
-	$('a.next_page', search_result_section).button({icons: {primary: "ui-icon-seek-next"}, text:false});
-	$('a.last_page', search_result_section).button({icons: {primary: "ui-icon-seek-end"}, text:false});
+	$('a.first_page', section).button({icons: {primary: "ui-icon-seek-first"}, text:false});
+	$('a.previous_page', section).button({icons: {primary: "ui-icon-seek-prev"}, text:false});
+	$('a.next_page', section).button({icons: {primary: "ui-icon-seek-next"}, text:false});
+	$('a.last_page', section).button({icons: {primary: "ui-icon-seek-end"}, text:false});
 	
 	// Attach navigation buttons click handler
 	var selection = selections[data_series_name];
-	$('div.page_navigation a', search_result_section).each(function(){
+	$('div.page_navigation a', section).each(function(){
 		if($(this).attr("href")) 
 		{
 			$(this).click(function(e){
 				e.preventDefault();
 				// We update the selection
-				if(selection.all_selected)
-				{
-					$("input:checkbox:not(:checked)", $('table.search_result_table', search_result_section)).each(function(){selection.selected.add(this.value);});
-				}
-				else
-				{
-					$("input:checkbox:checked", $('table.search_result_table', search_result_section)).each(function(){selection.selected.add(this.value);});
-				}
+				update_selection_from_table($('table.search_result_table', section), selection);
+				
 				// We get the new search result table
-				load_search_result_table(search_result_section, $(this).attr("href"));
+				load_search_result_table(section, $(this).attr("href"));
 			});
 		}
 		else
@@ -228,43 +259,17 @@ function post_load_search_result_table(search_result_section)
 			$(this).addClass('ui-button-disabled ui-state-disabled');
 		}
 	});
-	// TODO create the buttons entirely in javascript and remove from search_result_table
+	
 	// Attach select_all unselect_all buttons click handler
-	$('button.select_all', search_result_section).button({icons: {primary: "ui-icon-check"}, text:true}).click(function(e){
-		select_all($('table.search_result_table', search_result_section));
+	$('button.select_all', section).button({icons: {primary: "ui-icon-check"}, text:true}).click(function(e){
+		select_all($('table.search_result_table', section), selection);
 	});
-	$('button.unselect_all', search_result_section).button({icons: {primary: "ui-icon-close"}, text:true}).click(function(e){
-		unselect_all($('table.search_result_table', search_result_section));
+	$('button.unselect_all', section).button({icons: {primary: "ui-icon-close"}, text:true}).click(function(e){
+		unselect_all($('table.search_result_table', section), selection);
 	});
 	
-	// If selected_all is set, check all checkboxes and uncheck the selected
-	if(selection.all_selected)
-	{
-		$("table.search_result_table input:checkbox", search_result_section).prop("checked", true).each(function(){
-			if(this.value in selection.selected)
-			{
-				$(this).prop("checked", false);
-			}
-		});
-	}
-	else // Do the opposite
-	{
-		$("table.search_result_table input:checkbox", search_result_section).prop("checked", false).each(function(){
-			if(this.value in selection.selected)
-			{
-				$(this).prop("checked", true);
-			}
-		});
-	}
-}
-
-function download_data(button, file_link)
-{
-	// Change the color of the icon so user knows what he already downloaded
-	button.addClass('ui-button-disabled ui-state-disabled');
-	
-	// Download the file
-	window.location.href = file_link;
+	// Mark as checked the checkboxes from previous selection
+	update_table_from_selection($("table.search_result_table", section), selection);
 }
 
 function preview_data(button, image_link, title)
@@ -290,25 +295,32 @@ function preview_data(button, image_link, title)
 	$("img", box).attr("src", image_link);
 }
 
-function execute_search_result_action(action_url, data)
+// Make an ajax request to action_url and display the response
+function execute_search_result_action(action_url, data, button)
 {
-	// Make an ajax request to action_url and display the response
 	log("execute_search_result_action url: ", action_url, "data: ", $.param(data));
+	
+	// Add visual indication that the search is sent, we will restore the button after the request
+	var original_icon = $("span.ui-icon", button).attr("class");
+	$("span.ui-icon", button).attr("class", "ui-button-icon-primary ui-icon ui-icon-loading");
+	
 	$.post(action_url, data)
 	.done(function(response){
 		log("execute_search_result_action SUCCEEDED url: ", action_url, "response: ", response);
+		$("span.ui-icon", button).attr("class", original_icon);
 		inform_user(response);
 	})
 	.fail(function(request, status){
 		log("execute_search_result_action FAILED url: ", action_url, "response: ", request.responseText);
+		$("span.ui-icon", button).attr("class", original_icon);
 		alert_user(request.responseText);
 	});
 }
 
-function load_request_table(table_url, post_load_request_table)
+// Make an ajax request to table_url and insert the result into the section content
+function load_user_request_table(section, table_url, post_load_user_request_table)
 {
-	// Make an ajax request to table_url and prepend the request table to the panel
-	log("load_request_table url: ", table_url, "username: ", username);
+	log("load_user_request_table url: ", table_url, "section: ", $("div.section_title", section).text());
 	
 	// Make the request and save it
 	var request = $.get(table_url);
@@ -318,40 +330,33 @@ function load_request_table(table_url, post_load_request_table)
 	
 	// Success
 	request.done(function(response){
-		log("load_request_table SUCCEEDED for request: ", request.uid);
-		// Create the new section
-		request_section = $(response);
-		
-		// Replace the old section with the new one
-		$("#" + request_section.attr("id")).replaceWith(request_section);
-		
-		// Set some JQuery classes to make sections pretty
-		request_section.addClass("ui-widget ui-widget-content ui-corner-all");
-		$("div.section_title, div.actions", request_section).addClass("ui-widget-header ui-corner-all ui-helper-clearfix");
-		
-		if(post_load_request_table !== undefined)
+		log("load_user_request_table SUCCEEDED for request: ", request.uid);
+		$("div.section_content", section).html(response);
+				
+		if(post_load_user_request_table !== undefined)
 		{
 			// Make the section pretty
-			post_load_request_table(request_section);
+			post_load_user_request_table(section);
 		}
 	});
 	
 	// Failure or abort
 	request.fail(function(request, status){
-		log("load_request_table FAILED for request: ", request.uid, "status: ", status, "response: ", request.responseText);
+		log("load_user_request_table FAILED for request: ", request.uid, "status: ", status, "response: ", request.responseText);
 		alert_user(request.responseText);
 	});
 }
 
-function post_load_export_data_request_table(request_table)
+// Set-up the section after the load
+function post_load_user_request_table(section)
 {
-	log("post_load_export_data_request_table");
+	log("post_load_user_request_table section: ", $("div.section_title", section).text());
 	
 	// Transform open ftp location anchor to button
-	$('a.open_ftp_location', request_table).button({icons: {primary: "ui-icon-folder-open"}, text:false});
+	$('div.section_content a.open_ftp_location', section).button({icons: {primary: "ui-icon-folder-open"}, text:false});
 	
 	// Transform delete request anchors to button
-	$('a.delete_request', request_table).button({icons: {primary: "ui-icon-trash"}, text:false}).click(function(e){
+	$('div.section_content a.delete_request', section).button({icons: {primary: "ui-icon-trash"}, text:false}).click(function(e){
 		var anchor = $(this);
 		log("delete_request url: ", anchor.attr("href"));
 		e.preventDefault();
@@ -374,6 +379,16 @@ function post_load_export_data_request_table(request_table)
 	});
 }
 
+// Load all request tables in the user tab
+function load_user_tab_content()
+{
+	// Load the export data request table
+	load_user_request_table($("div#export_data_request_section"), EXPORT_DATA_REQUEST_TABLE_URL, post_load_user_request_table);
+	// Load the export meta-data request table
+	load_user_request_table($("div#export_meta_data_request_section"), EXPORT_META_DATA_REQUEST_TABLE_URL, post_load_user_request_table);
+
+}
+
 // Things to do at the very beginning
 function load_events_handlers()
 {
@@ -386,25 +401,15 @@ function load_events_handlers()
 	// Attach tabs handler
 	$("#tabs").tabs(
 		{
-			active: -1,
+			active: 0,
 			beforeActivate: function(event, ui){
-				if(ui.newPanel.attr('id') == "user")
+				if(ui.newPanel.attr('id') == "user" && username)
 				{
-					load_request_table(EXPORT_DATA_REQUEST_TABLE_URL, post_load_export_data_request_table);
-				}
-				else
-				{
-					var selected_tab = $('#'+ui.newPanel.attr('id'));
-					log("Prepending time_range panel to:", selected_tab.attr('id'));
-					$("form.data_search_form", selected_tab).prepend($("#time_range"));
+					load_user_tab_content();
 				}
 			}
 		}
 	);
-	
-	
-	// Move time_range form into selected tab
-	$("#tabs").tabs( "option", "active" , 0);
 	
 	// Set defaults for all datetime pickers
 	$.datepicker.setDefaults(
@@ -420,25 +425,12 @@ function load_events_handlers()
 	);
 	
 	// Attach datetime picker to start_date and end_date
-	var now = new Date();
-	$("#id_start_date").datetimepicker(
+	$("input.date_time_input").datetimepicker(
 		{
-			minDateTime: new Date(2010,03,29),
-			maxDateTime: now,
+			minDateTime: new Date(2010,02,29),
+			maxDateTime: new Date(),
 			// time picker options cannot be set trough setDefaults
 			timeFormat: 'HH:mm:ss', 
-			hourGrid: 6,
-			minuteGrid: 10,
-			showSecond: false,
-		}
-	);
-	
-	$("#id_end_date").datetimepicker(
-		{
-			minDateTime: new Date(2010,03,29),
-			maxDateTime: now,
-			// time picker options cannot be set trough setDefaults
-			timeFormat: 'HH:mm:ss',
 			hourGrid: 6,
 			minuteGrid: 10,
 			showSecond: false,
@@ -450,15 +442,20 @@ function load_events_handlers()
 		e.preventDefault();
 		var form = $(e.target);
 		log("submit form action: ", form.attr("action"), "query: ", form.serialize());
-		$.post(form.attr("action"), form.serialize())
+		
+$.post(form.attr("action"), form.serialize())
 		.done(function(response){
 			log("login SUCCEEDED response: ", response);
 			// TODO load request and logout button
 			username = response;
-			$("li#user_tab>a").text(username); 
+			// Change tab name to username
+			$("li#user_tab>a").html("<span class='ui-icon ui-icon-person visual_indicator'></span>" + username); 
+			// Remove login form
 			$("form#login_form").remove();
-			$("#tabs").tabs( "option", "active" , -1);
-			$("div#user").append("<div><button id='logout' title='Log out of the application' href='"+LOGOUT_URL+"'>Logout</button></div>")
+			// Show all hidden content
+			$("div#user > *").show("fast");
+			// Load the request tables
+			load_user_tab_content()
 		})
 		.fail(function(request, status){
 			log("login FAILED response: ", request.responseText);
@@ -488,52 +485,44 @@ function load_events_handlers()
 		inform_user($(this).attr("title"));
 	});
 	
-	// Make up the action buttons and add click handler
+	// Make up the action buttons
 	$("button.search_data").button({icons: {primary: "ui-icon-search"}});
 	$("button.download_bundle").button({icons: {primary: "ui-icon-cart"}}).hide();
-	$("button.export_data").button({icons: {primary: "ui-icon-extlink"}}).click(function(e){
-		if(username)
-		{
-			// Disable the button during the request
-			$(e.target).prop("disabled", true);
-		}
-		else
+	$("button.export_data").button({icons: {primary: "ui-icon-extlink"}});
+	$("button.export_meta_data").button({icons: {primary: "ui-icon-document"}});
+	$("button.export_cutout").button({icons: {primary: "ui-icon-scissors"}}).hide();
+	
+	// When user make an export request, check that he is logged in first
+	$("div.search_result_actions button").click(function(e){
+		log("click handler for button: ", $(e.target).text())
+		if(! username)
 		{
 			e.preventDefault();
 			// If user is not logged in, ask him to do so
-			inform_user("Please, login before making a data request.");
+			inform_user("Please, login before making an export request.");
+			
 			// Open the login tab
 			$("#tabs").tabs("option", "active" , -1);
 		}
 	});
-	$("button.export_keywords").button({icons: {primary: "ui-icon-document"}}).click(function(e){});
-	$("button.bring_online").button({icons: {primary: "ui-icon-home"}}).hide();
-	$("button.export_cutout").button({icons: {primary: "ui-icon-scissors"}}).hide();
-	$("button#login").button({icons: {primary: "ui-icon-key"}, text:true});
 	
-	$("button#logout").button({icons: {primary: "ui-icon-extlink"}, text:true}).click(function(e){
-		window.location.href = $(this).attr("href");
-	});
+	$("button#login").button({icons: {primary: "ui-icon-key"}, text:true});
+	$("a#logout").button({icons: {primary: "ui-icon-extlink"}, text:true});
 	
 	// Transform the search result action form to do ajax request instead
 	$("div.search_result_actions form").submit(function(e){
 		e.preventDefault();
-		// Update the selected checkboxes
+
+		// Update the selection with the selected checkboxes
 		var selection = selections[get_data_series_name(e.target)];
-		if(selection.all_selected)
-		{
-			$("input:checkbox:not(:checked)", $('div.search_result_section table.search_result_table', $(e.target).closest("div.search_result_panel"))).each(function(){selection.selected.add(this.value);});
-		}
-		else
-		{
-			$("input:checkbox:checked", $('div.search_result_section table.search_result_table', $(e.target).closest("div.search_result_panel"))).each(function(){selection.selected.add(this.value);});
-		}
+		update_selection_from_table($('div.search_result_section table.search_result_table', $(e.target).closest("div.search_result_panel")), selection);
+		
 		// Create the data object to be sent
 		var data = {
 			all_selected: selection.all_selected,
 			selected: selection.selected.values(),
 		};
-		execute_search_result_action($(e.target).attr("action")+ "?" + selection.search_query, data);
+		execute_search_result_action($(e.target).attr("action")+ "?" + selection.search_query, data, $("button", e.target));
 	});
 	
 	// Set up global variables
@@ -548,7 +537,6 @@ function load_events_handlers()
 	// Set some JQuery classes to make sections pretty
 	$("div.section").addClass("ui-widget ui-widget-content ui-corner-all");
 	$("div.section_title, div.actions").addClass("ui-widget-header ui-corner-all ui-helper-clearfix");
-	//$("div.actions").addClass("ui-widget-content ui-corner-all ui-helper-clearfix");
 	
 	// Some adjustments to ajax requests (get and post) to make it run smoothly with django
 	$.ajaxSetup({

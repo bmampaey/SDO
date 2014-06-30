@@ -1,30 +1,44 @@
 import os
 from datetime import datetime, timedelta
 import dateutil.parser as date_parser
+import shutil
+import logging
 
-from django.db import models
+from django.db import models, IntegrityError
 from django.forms.models import model_to_dict
 from django.core.validators import RegexValidator
 from django.contrib.auth.models import User
+from django.db.models import signals
+from django.dispatch import receiver
 
 # djorm-pgarray allow to use postgres arrays
 # To install: "sudo pip install djorm-pgarray"
 from djorm_pgarray.fields import BigIntegerArrayField
 
+from celery.task.control import revoke as revoke_task
+
 from DRMS.models import DRMSDataSeries
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
+
+# TODO check how to config logging in django
+logging.basicConfig(level = logging.DEBUG, format = "%(levelname)s %(funcName)s %(message)s")
+# Get an instance of a logger
+log = logging.getLogger(__name__)
+
+
 
 class GlobalConfig(models.Model):
 	PYTHON_TYPE_CHOICES = (
 		("string", "string"),
+		("bool", "bool"),
 		("int", "int"),
 		("float", "float"),
 		("datetime", "datetime (iso format)"),
 		("timedelta", "timedelta (in seconds)"),
 	)
-	name = models.CharField(max_length = 40, primary_key = True)
+	name = models.CharField(max_length = 80, primary_key = True)
 	value = models.CharField(max_length = 80, blank=False, null=False)
-	python_type = models.CharField(max_length = 9, blank=False, null=False, default = "string", choices = PYTHON_TYPE_CHOICES)
+	python_type = models.CharField(max_length = 12, blank=False, null=False, default = "string", choices = PYTHON_TYPE_CHOICES)
 	help_text = models.CharField(max_length = 80, blank=True, null=True, default = None)
 	
 	class Meta:
@@ -35,31 +49,74 @@ class GlobalConfig(models.Model):
 	def __unicode__(self):
 		return unicode(self.name)
 	
+	@staticmethod
+	def cast(value, python_type):
+		""" Cast the value to the one of the known python type """
+		if python_type == "string":
+			return value
+		elif python_type == "bool":
+			return bool(value)
+		elif python_type == "int":
+			return int(value)
+		elif python_type == "float":
+			return float(value)
+		elif python_type == "datetime":
+			return date_parser.parse(value)
+		elif python_type == "timedelta":
+			return timedelta(seconds=float(value))
+		else:
+			# TODO warn admins
+			raise Exception("Unknown python type %" +  python_type)
+	
+	@classmethod
+	def set(cls, name, value, help_text = "Please, set description."):
+		if isinstance(value, datetime):
+			python_type = "datetime"
+			value = value.isoformat()
+		elif isinstance(value, timedelta):
+			python_type = "timedelta"
+			value = value.total_seconds()
+		else:
+			python_type = type(value).__name__
+			if python_type not in [a for (a,b) in cls.PYTHON_TYPE_CHOICES]:
+				raise Exception("Invalid python type for global config variable %s with value %s" % (name, value))
+		
+		try:
+			variable, created = cls.objects.get_or_create(name=name, defaults={"value": str(value), "python_type": python_type, "help_text": help_text})
+		except IntegrityError:
+			pass
+		else:
+			if not created:
+				variable.value = value
+				variable.save()
+	
 	@classmethod
 	def get(cls, name, default = None):
+		#import pdb; pdb.set_trace()
 		try:
 			variable = cls.objects.get(name=name)
 		except cls.DoesNotExist:
+			cls.set(name, default, help_text = "Automatically created from application, please check and set decription")
 			return default
 		
-		if variable.python_type == "string":
-			return variable.value
-		elif variable.python_type == "int":
-			return int(variable.value)
-		elif variable.python_type == "float":
-			return float(variable.value)
-		elif variable.python_type == "datetime":
-			return date_parser.parse(variable.value)
-		elif variable.python_type == "timedelta":
-			return timedelta(seconds=int(variable.value))
-		else:
-			raise Exception("Unknown python type for global config variable " + name)
+		return cls.cast(variable.value, variable.python_type)
+	
+	
+	@classmethod
+	def get_or_warn(cls, name):
+		try:
+			variable = cls.objects.get(name=name)
+		except cls.DoesNotExist:
+			# TODO warn admins
+			raise Exception("Global configuration variable %s is not set" % name) 
+		
+		return cls.cast(variable.value, variable.python_type)
+
 
 class DataSite(models.Model):
 	name = models.CharField("Data site name.", max_length=12, primary_key = True)
 	priority = models.PositiveIntegerField(help_text = "Priority of the data site. The higher the value, the higher the priority.", default=0, blank=True, unique = True)
 	enabled = models.BooleanField(help_text = "Data site is to be used to download data.", default = True, blank=True)
-	local = models.BooleanField(help_text = "Data site is to be considered local. Only one data site should be set as local.", default = False)
 	contact = models.CharField(help_text = "Contact emails for the data site.", blank=True, max_length=200)
 	data_download_protocol = models.CharField(help_text = "Protocol to download data.", max_length=12, default = "sftp", choices=[("sftp", "sftp"), ("http", "http")])
 	data_download_server = models.CharField(help_text = "Address of the data server.", max_length=50)
@@ -141,11 +198,11 @@ class DataSeries(models.Model):
 	def hdu(self):
 		return self.record.hdu
 	
-	def get_header_values(self, request):
+	def get_header_values(self, recnum):
 		# We must translate the attributes name to the real keyword name
 		if not hasattr(self, '__header_keywords'):
 			self.__set_header_keywords_units_comments()
-		values = model_to_dict(self.drms_series.fits_header_model.objects.get(recnum=request.recnum))
+		values = model_to_dict(self.drms_series.fits_header_model.objects.get(recnum=recnum))
 		header_values = dict()
 		for attname, keyword in self.__header_keywords.iteritems():
 			header_values[keyword] = values[attname]
@@ -159,6 +216,10 @@ class DataSeries(models.Model):
 			self.__header_units[fits_keyword.keyword] = fits_keyword.unit
 			self.__header_comments[fits_keyword.keyword] = fits_keyword.comment
 		
+	def get_header_keywords(self):
+		if not hasattr(self, '__header_keywords'):
+			self.__set_header_keywords_units_comments()
+		return self.__header_keywords.values()
 	
 	def get_header_units(self):
 		if not hasattr(self, '__header_units'):
@@ -243,7 +304,7 @@ class LocalDataLocation(PMDDataLocation):
 	
 	@classmethod
 	def create_location(cls, request):
-		cache = GlobalConfig.get("data_cache")
+		cache = GlobalConfig.get_or_warn("data_cache")
 		path = os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment))
 		cls.save_path(request, path)
 		return path
@@ -274,6 +335,14 @@ class LocalDataLocation(PMDDataLocation):
 			return
 		data_location.delete()
 
+# Register a django signal so that when a LocalDataLocation is deleted, the corresponding files are also deleted
+@receiver(signals.post_delete, sender=LocalDataLocation)
+def delete_local_data_location_files(sender,  instance, using, **kwargs):
+	log.info("local_data_location %s, delete files %", instance, instance.path)
+	try:
+		os.remove(instance.path)
+	except Exception, why:
+		log.error("local_data_location %s, could not delete files %: %s", instance, instance.path, str(why))
 
 class DrmsDataLocation(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.PROTECT, db_column = "data_series_name")
@@ -320,9 +389,9 @@ class SAODataLocation(DrmsDataLocation):
 		db_table = "sao_data_location"
 		verbose_name = "SAO data location"
 
-#####################
-# PMD record models #
-#####################
+###############
+# PMD record models  #
+###############
 
 class PmdRecord(models.Model):
 	recnum = models.BigIntegerField(primary_key=True)
@@ -333,6 +402,9 @@ class PmdRecord(models.Model):
 	
 	class Meta:
 		abstract = True
+	
+	def __unicode__(self):
+		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
 	
 	@classmethod
 	def sub_models(cls):
@@ -355,15 +427,13 @@ class AiaLev1Record(PmdRecord):
 		ordering = ["t_rec_index"]
 		verbose_name = "AIA Lev1"
 	
-	def __unicode__(self):
-		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
-	
 	@property
 	def filename(self):
 		return "AIA.%s.%04d.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.wavelnth, self.segment)
 
 
 class HmiIc45SRecord(PmdRecord):
+	wavelnth = models.FloatField(blank=True, null=True)
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
 	camera = models.IntegerField(blank=True, null=True)
@@ -378,10 +448,7 @@ class HmiIc45SRecord(PmdRecord):
 		unique_together = (("t_rec_index", "camera"),)
 		ordering = ["t_rec_index"]
 		verbose_name = "HMI M45s"
-	
-	def __unicode__(self):
-		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
-	
+		
 	@property
 	def filename(self):
 		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
@@ -402,19 +469,16 @@ class HmiM45SRecord(PmdRecord):
 		unique_together = (("t_rec_index", "camera"),)
 		ordering = ["t_rec_index"]
 		verbose_name = "HMI M45s"
-	
-	def __unicode__(self):
-		return unicode("%s %s" % (self._meta.verbose_name, self.recnum))
-	
+		
 	@property
 	def filename(self):
 		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
 
-##################
-# Request models #
-##################
+################
+# Data request models  #
+################
 
-class Request(models.Model):
+class DataRequest(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.PROTECT, db_column = "data_series_name")
 	sunum = models.BigIntegerField(help_text = "JSOC Storage Unit number", blank=False, null=False)
 	slotnum = models.IntegerField(help_text = "JSOC Slot number", blank=False, null=False, default=0)
@@ -449,36 +513,40 @@ class Request(models.Model):
 		request.size = request.data_series.average_file_size
 		return request
 
-class DataDownloadRequest(Request):
+class DataDownloadRequest(DataRequest):
 	data_site = models.ForeignKey(DataSite, help_text="Name of the data site from which to download the data from.", on_delete=models.PROTECT, db_column = "data_site_name")
 	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the data from the system.", blank=True, null=True)
 	remote_file_path = models.CharField(help_text = "File path at the remote data site", max_length=255, blank=True, null=True, default=None)
 	local_file_path = models.CharField(help_text = "File path at the local data site", max_length=255, blank=True, null=True, default=None)
 	
-	class Meta(Request.Meta):
+	class Meta(DataRequest.Meta):
 		db_table = "data_download_request"
 		verbose_name = "Data download request"
 
-class DataLocationRequest(Request):
+class DataLocationRequest(DataRequest):
 	data_site = models.ForeignKey(DataSite, help_text="Name of the data site from which to find the location of the data from.", on_delete=models.PROTECT, db_column = "data_site_name")
 	
-	class Meta(Request.Meta):
+	class Meta(DataRequest.Meta):
 		db_table = "data_location_request"
 		verbose_name = "Data location request"
 
-class DataDeleteRequest(Request):
+class DataDeleteRequest(DataRequest):
 	
-	class Meta(Request.Meta):
+	class Meta(DataRequest.Meta):
 		db_table = "data_delete_request"
 		verbose_name = "Data delete request"
 
-class MetaDataUpdateRequest(Request):
+class MetaDataUpdateRequest(DataRequest):
 	
-	class Meta(Request.Meta):
+	class Meta(DataRequest.Meta):
 		db_table = "meta_data_update_request"
 		verbose_name = "Meta-data update request"
 
-class ExportDataRequest(models.Model):
+################
+# User request models  #
+################
+
+class UserRequest(models.Model):
 	user = models.ForeignKey(User, on_delete=models.DO_NOTHING)
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.DO_NOTHING, db_column = "data_series_name")
 	recnums = BigIntegerArrayField(help_text = "List of recnums to export")
@@ -486,29 +554,41 @@ class ExportDataRequest(models.Model):
 	status = models.CharField(help_text = "Request status.", max_length=8, blank=False, null=False, default = "NEW")
 	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now())
 	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
+	task_id = models.CharField(help_text = "Task id.", max_length=36, blank=True, null=True, default = None)
 	
 	class Meta:
-		db_table = "export_data_request"
-		verbose_name = "Export data request"
+		abstract = True
+		ordering = ["requested"]
+		get_latest_by = "requested"
 	
 	def save(self, *args, **kwargs):
 		if self.expiration_date is None:
-			self.expiration_date = self.requested + GlobalConfig.get("default_request_retention_time", timedelta(days=60))
-		super(ExportDataRequest, self).save(*args, **kwargs)
+			self.expiration_date = self.requested + GlobalConfig.get("default_user_request_retention_time", timedelta(days=60))
+		super(UserRequest, self).save(*args, **kwargs)
 	
+	def __unicode__(self):
+		return u"%s %s" % (self.user, self.requested)
+
+
+class ExportDataRequest(UserRequest):
+	
+	class Meta(UserRequest.Meta):
+		db_table = "export_data_request"
+		verbose_name = "Export data request"
+		
 	@property
 	def name(self):
 		return self.requested.strftime("%Y%m%d_%H%M%S")
 	
 	@property
 	def export_path(self):
-		cache = GlobalConfig.get("export_cache")
+		cache = GlobalConfig.get_or_warn("export_cache")
 		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
 		return path
 	
 	@property
 	def ftp_path(self):
-		cache = GlobalConfig.get("export_ftp_url")
+		cache = GlobalConfig.get_or_warn("export_ftp_url")
 		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
 		return path
 	
@@ -523,4 +603,80 @@ class ExportDataRequest(models.Model):
 			return "%d %s" % (size, suffix)
 		else:
 			return size
-			
+	
+	# For displaying in tables
+	column_headers = ["Requested", "Data Series", "Size", "Expires", "Status"]
+	
+	@property
+	def row_fields(self):
+		return [
+			self.requested,
+			self.data_series.name,
+			self.estimated_size(human_readable =True),
+			self.expiration_date,
+			self.status.lower()
+		]
+
+
+# Register a django signal so that when a ExportDataRequest is deleted, the corresponding files are also deleted
+@receiver(signals.post_delete, sender=ExportDataRequest)
+def delete_export_data_files(sender,  instance, using, **kwargs):
+	# Cancel the background task
+	if instance.task_id:
+		log.info("user request %s, cancel task %", instance, instance.task_id)
+		revoke_task(instance.task_id, terminate=True)
+	
+	# Delete the files
+	log.info("user request %s, delete files %", instance, instance.export_path)
+	shutil.rmtree(instance.export_path, ignore_errors = True)
+	
+class ExportMetaDataRequest(UserRequest):
+	
+	class Meta(UserRequest.Meta):
+		db_table = "export_meta_data_request"
+		verbose_name = "Export meta-data request"
+		
+	@property
+	def name(self):
+		return "%s.%s" % (self.data_series.name, self.requested.strftime("%Y%m%d_%H%M%S"))
+	
+	@property
+	def export_path(self):
+		cache = GlobalConfig.get_or_warn("export_cache")
+		path = os.path.join(cache, self.user.username, self.name + ".csv")
+		return path
+	
+	@property
+	def ftp_path(self):
+		cache = GlobalConfig.get_or_warn("export_ftp_url")
+		path = os.path.join(cache, self.user.username, self.name + ".csv")
+		return path
+	
+	# For displaying in tables
+	column_headers = ["Requested", "Data Series", "Length", "Expires", "Status"]
+	
+	@property
+	def row_fields(self):
+		return [
+			self.requested,
+			self.data_series.name,
+			len(self.recnums),
+			self.expiration_date,
+			self.status.lower()
+		]
+
+
+# Register a django signal so that when a ExportMetaDataRequest is deleted, the corresponding files are also deleted
+@receiver(signals.post_delete, sender=ExportMetaDataRequest)
+def delete_export_meta_data_files(sender,  instance, using, **kwargs):
+	# Cancel the background task
+	if instance.task_id:
+		log.info("user request %s, cancel task %", instance, instance.task_id)
+		revoke_task(instance.task_id, terminate=True)
+	print "poueeet"
+	# Delete the files
+	log.info("user request %s, delete files %", instance, instance.export_path)
+	try:
+		os.remove(instance.export_path)
+	except Exception, why:
+			log.error("user request %s, could not delete files %: %s", instance, instance.export_path, str(why))

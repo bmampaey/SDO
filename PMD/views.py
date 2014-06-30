@@ -1,13 +1,15 @@
+from datetime import datetime
+
 from django.shortcuts import render, redirect, get_object_or_404, get_list_or_404
-from django.http import HttpResponse, HttpResponseRedirect, HttpResponseBadRequest, HttpResponseServerError, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseRedirect, HttpResponseBadRequest, HttpResponseServerError, HttpResponseForbidden, HttpResponseNotFound
 from django.contrib.auth import authenticate, login as user_login
-from django.contrib.auth.models import User, UserManager, Group
+from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_safe, require_POST, require_http_methods
 
-from PMD.models import DataSeries, DataDownloadRequest, ExportDataRequest
+from PMD.models import DataSeries, DataDownloadRequest, ExportDataRequest, ExportMetaDataRequest
 from PMD.forms import LoginForm, EmailLoginForm, DataSeriesSearchForm
-from PMD.tasks import get_preview, get_data, execute_bring_online_request, execute_export_data_request, execute_export_meta_data_request
+from PMD.tasks import get_preview, get_data, execute_export_data_request, execute_export_meta_data_request
 
 # Assert we only have post
 @require_POST
@@ -32,8 +34,7 @@ def login(request):
 		user = authenticate(username=username, password=password)
 		if user is None:
 			# Register the user
-			group = Group.objects.get("external_users")
-			UserManager.create_user(username, email=form.cleaned_data["email"], password=password, is_staff = False)
+			User.objects.create_user(username, email=form.cleaned_data["email"], password=password)
 			user = authenticate(username=username, password=password)
 		if user.is_active:
 			user_login(request, user)
@@ -51,7 +52,7 @@ def index(request):
 	context = {
 		'login_form': LoginForm(label_suffix=''),
 		'email_login_form': EmailLoginForm(label_suffix=''),
-		'data_series_search_forms': [data_series_search_forms[name](label_suffix='') for name in sorted(data_series_search_forms)],
+		'data_series_search_forms': [data_series_search_forms[name](label_suffix='', auto_id="id_%s_"+name) for name in sorted(data_series_search_forms)],
 	}
 	
 	return render(request, 'PMD/index.html', context)
@@ -84,7 +85,10 @@ def preview_data(request, data_series_name, recnum):
 	print "found", data_series_name
 	record = get_object_or_404(data_series.record, recnum=recnum)
 	data_download_request = DataDownloadRequest.create_from_record(record)
-
+	
+	# Set a very short lifetime to the data to allow quick deletion (if someone tries to make a lot of these)
+	data_download_request.expiration_date = datetime.now()
+	
 	# Execute a preview task to get the path to the preview image
 	try:
 		path = get_preview(data_download_request)
@@ -105,6 +109,9 @@ def download_data(request, data_series_name, recnum):
 	print "found", data_series_name
 	record = get_object_or_404(data_series.record, recnum=recnum)
 	data_download_request = DataDownloadRequest.create_from_record(record)
+	
+	# Set a very short lifetime to the data to allow quick deletion (if someone tries to make a lot of these)
+	data_download_request.expiration_date = datetime.now()
 	
 	# Execute a get_data task to get the path to the data
 	try:
@@ -169,10 +176,8 @@ def search_result_action(request, action_type, data_series_name):
 		return download_bundle(request, data_series_name, recnums, paginator)
 	elif action_type == "export_data":
 		return export_data(request, data_series_name, recnums, paginator)
-	elif action_type == "export_keywords":
-		return export_keywords(request, data_series_name, recnums, paginator)
-	elif action_type == "bring_online":
-		return bring_online(request, data_series_name, recnums, paginator)
+	elif action_type == "export_meta_data":
+		return export_meta_data(request, data_series_name, recnums, paginator)
 	elif action_type == "export_cutout":
 		return export_cutout(request, data_series_name, recnums, paginator)
 	else:
@@ -188,57 +193,78 @@ def export_data(request, data_series_name, recnums, paginator):
 	
 	# Create the request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
-	export_data_request = ExportDataRequest(user = request.user, data_series = data_series, recnums = recnums)
+	user_request = ExportDataRequest(user = request.user, data_series = data_series, recnums = recnums)
 	
 	# Execute the request
-	#execute_export_data_request.delay(export_data_request, paginator)
-	execute_export_data_request(export_data_request, paginator)
+	async_result = execute_export_data_request.delay(user_request, paginator)
+	
+	# Save the task id into the request to allow easy cancel
+	user_request.task_id = async_result.id
+	user_request.save()
+	
+	#execute_export_data_request(user_request, paginator)
 	
 	# Return message about request
-	return render(request, 'PMD/export_data_request_message.html',  { "ftp_path" : export_data_request.ftp_path })
+	return render(request, 'PMD/user_request_message.html',  { "request_type": "export data", "ftp_path" : user_request.ftp_path })
 
 
-def export_keywords(request, data_series_name, recnums, paginator):
-	return HttpResponseNotFound("Not yet implemented")
-
-def bring_online(request, data_series_name, recnums, paginator):
-	return HttpResponseNotFound("Not yet implemented")
+def export_meta_data(request, data_series_name, recnums, paginator):
+	""" Create a ExportMetaDataRequest and execute it asynchronously """
+	
+	# Create the request
+	data_series = get_object_or_404(DataSeries, pk=data_series_name)
+	user_request = ExportMetaDataRequest(user = request.user, data_series = data_series, recnums = recnums)
+	#import pdb; pdb.set_trace()
+	# Execute the request
+	async_result = execute_export_meta_data_request.delay(user_request, paginator)
+	
+	# Save the task id into the request to allow easy cancel
+	user_request.task_id = async_result.id
+	user_request.save()
+	
+	#execute_export_meta_data_request(user_request, paginator)
+	
+	# Return message about request
+	return render(request, 'PMD/user_request_message.html',  { "request_type": "export meta-data", "ftp_path" : user_request.ftp_path })
 
 def export_cutout(request, data_series_name, recnums, paginator):
 	return HttpResponseNotFound("Not yet implemented")
 
+
 # Assert we only have get and that we are logged in
 @require_safe
 @login_required
-def export_data_request_table(request):
-	#import pprint; print pprint.pformat(request.GET, depth=6)
+def user_request_table(request, request_type):
+	
 	#import pdb; pdb.set_trace()
 	# Verify user is authenticated and active
 	if not request.user.is_authenticated():
-		return HttpResponseForbidden("You must first login to get your export requests")
+		return HttpResponseForbidden("You must first login to get your user requests")
 	if not request.user.is_active:
 		return HttpResponseForbidden("Your account has been disabled, please contact sdoadmins@oma.be")
 	
+	# Get the model for the request type
+	if request_type == "export_data":
+		user_request_model = ExportDataRequest
+	elif request_type == "export_meta_data":
+		user_request_model = ExportMetaDataRequest
+	else:
+		return HttpResponseNotFound("Unknown request type %s" % request_type)
+	
 	# Get the request table
-	headers = ["Requested", "Data Series", "Size", "Expires", "Status"]
+	headers = user_request_model.column_headers
 	rows = list()
-	for export_data_request in ExportDataRequest.objects.filter(user = request.user):
-		rows.append({'request_id': export_data_request.id, 'ftp_path': export_data_request.ftp_path, 'fields': [
-			export_data_request.requested.strftime("%Y-%m-%d %H:%M:%S"),
-			export_data_request.data_series.name,
-			export_data_request.estimated_size(human_readable =True),
-			export_data_request.expiration_date.strftime("%Y-%m-%d %H:%M:%S"),
-			export_data_request.status.lower()
-		]})
+	for user_request in user_request_model.objects.filter(user = request.user):
+		rows.append({'request_id': user_request.id, 'ftp_path': user_request.ftp_path, 'fields': user_request.row_fields})
 	
 	# Send the response
-	return render(request, 'PMD/export_data_request_table.html', {"headers": headers, "rows": rows})
+	return render(request, 'PMD/user_request_table.html', {"request_type": request_type, "headers": headers, "rows": rows})
 
 
 # Assert we only have delete and that we are logged in
-#@require_http_methods(["DELETE"])
+@require_http_methods(["DELETE"])
 @login_required
-def delete_export_data_request(request, request_id):
+def delete_user_request(request, request_type, request_id):
 	
 	# Verify user is authenticated and active
 	if not request.user.is_authenticated():
@@ -246,15 +272,22 @@ def delete_export_data_request(request, request_id):
 	if not request.user.is_active:
 		return HttpResponseForbidden("Your account has been disabled, please contact sdoadmins@oma.be")
 	
-	# Search the request
-	export_request = get_object_or_404(ExportDataRequest, id=request_id)
+	# Get the model for the request type
+	if request_type == "export_data":
+		user_request_model = ExportDataRequest
+	elif request_type == "export_meta_data":
+		user_request_model = ExportMetaDataRequest
+	else:
+		return HttpResponseNotFound("Unknown request type %s" % request_type)
+	
+	# Get the request to delete
+	user_request = get_object_or_404(user_request_model, id=request_id)
 	
 	# Check that the user is allowed to delete the request, and delete it
-	if request.user != export_request.user:
+	if request.user != user_request.user:
 		return HttpResponseForbidden("You are not allowed to delete that request")
 	else:
-		# Files are deleted automatically by django signal http://stackoverflow.com/questions/1534986/how-do-i-override-delete-on-a-model-and-have-it-still-work-with-related-delete
-		# Do the same for localdatalocation
-		export_request.delete() 
+		# Files are deleted and task cancelled by django signal http://stackoverflow.com/questions/1534986/how-do-i-override-delete-on-a-model-and-have-it-still-work-with-related-delete
+		user_request.delete() 
 	
-	return HttpResponse("The request %s has been deleted. Thank you for freeing some disk space." % export_request.name)
+	return HttpResponse("The request %s has been deleted. Thank you for freeing some disk space." % user_request.name)

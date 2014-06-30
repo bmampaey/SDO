@@ -24,9 +24,9 @@ class EmailLoginForm(forms.Form):
 
 class DataSeriesSearchForm(forms.Form):
 	""" Common class for all data series search form. Must be inherited for each data series """
-	start_date = forms.DateTimeField(required=False, initial = datetime(2010, 03, 29))
-	#end_date = forms.DateTimeField(required=False, initial = datetime.utcnow())
-	end_date = forms.DateTimeField(required=False, initial = datetime(2010, 05, 15))
+	start_date = forms.DateTimeField(required=False, initial = datetime(2010, 03, 29), widget=forms.DateTimeInput(format = "%Y-%m-%d %H:%M:%S", attrs={'class': 'date_time_input'}))
+	#end_date = forms.DateTimeField(required=False, initial = datetime.utcnow(), widget=forms.DateTimeInput(format = "%Y-%m-%d %H:%M:%S", attrs={'class': 'date_time_input'}))
+	end_date = forms.DateTimeField(required=False, initial = datetime(2010, 05, 15), widget=forms.DateTimeInput(format = "%Y-%m-%d %H:%M:%S", attrs={'class': 'date_time_input'}))
 	cadence = CadenceField(required=False, min_value = 1)
 	
 	@classmethod
@@ -237,10 +237,10 @@ class HmiIc45SSearchForm(DataSeriesSearchForm):
 	
 	@classmethod
 	def get_headers_rows(cls, records):
-		headers = ["Date", "Quality"]
+		headers = ["Date", "Wavelength", "Quality"]
 		rows = list()
 		for record in records:
 			record_title = u"%s %s" % (cls.tab_name, record.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
-			rows.append({'recnum': record.recnum, 'title': record_title, 'fields': [record.date_obs, record.quality]})
+			rows.append({'recnum': record.recnum, 'title': record_title, 'fields': [record.date_obs, record.wavelnth, record.quality]})
 		
 		return headers, rows
