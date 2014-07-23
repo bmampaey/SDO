@@ -7,9 +7,10 @@ https://docs.djangoproject.com/en/1.6/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.6/ref/settings/
 """
+import os
+import socket
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
@@ -69,8 +70,12 @@ DATABASES = {
     }
 }
 
-# Mails server config
+# Mails config
 EMAIL_HOST = "smtp.oma.be"
+ADMINS = [("Benjamin Mampaey", "benjamin.mampaey@oma.be")]
+SERVER_EMAIL = "SDO_deamon@" + socket.getfqdn(socket.gethostname())
+DEFAULT_FROM_EMAIL = "sdoadmin@oma.be"
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
