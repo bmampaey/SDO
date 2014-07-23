@@ -28,43 +28,49 @@ TABLESPACE indexspace;
 -- Create the trigger function
 CREATE OR REPLACE FUNCTION aia.populate_aia_lev1() RETURNS TRIGGER AS $populate_aia_lev1$
 BEGIN
-   -- First we try an update. It will not happen if the row didn't exist yet.
-   UPDATE pmd.aia_lev1
-   SET
-      recnum=NEW.recnum,
-      sunum=NEW.sunum,
-      slotnum=NEW.slotnum,
-      segment=NEW.sg_000_file,
-      date_obs=offset_to_utc(NEW.date__obs),
-      wavelnth=NEW.wavelnth,
-      quality=NEW.quality
-   WHERE
-      t_rec_index=NEW.t_rec_index
-      AND fsn=NEW.fsn
-      AND recnum<NEW.recnum
-   ;
-   -- Next we try a insert. It will not happen if the row exist already.
-   INSERT INTO pmd.aia_lev1 (recnum, sunum, slotnum, segment, date_obs, wavelnth, quality, t_rec_index, fsn)
-   SELECT
-      NEW.recnum,
-      NEW.sunum,
-      NEW.slotnum,
-      NEW.sg_000_file,
-      offset_to_utc(NEW.date__obs),
-      NEW.wavelnth,
-      NEW.quality,
-      NEW.t_rec_index,
-      NEW.fsn
-   WHERE
-      NOT EXISTS (
-         SELECT 1
-         FROM pmd.aia_lev1
-         WHERE
-            t_rec_index=NEW.t_rec_index
-            AND fsn=NEW.fsn
-      )
-   ;
-   RETURN NEW;
+	BEGIN
+		-- First we try an update. It will fail if the row didn't exist yet.
+		UPDATE pmd.aia_lev1
+		SET
+			recnum=NEW.recnum,
+			sunum=NEW.sunum,
+			slotnum=NEW.slotnum,
+			segment=NEW.sg_000_file,
+			date_obs=offset_to_utc(NEW.date__obs),
+			wavelnth=NEW.wavelnth,
+			quality=NEW.quality
+		WHERE
+			t_rec_index=NEW.t_rec_index
+			AND fsn=NEW.fsn
+			AND recnum<NEW.recnum
+		;
+		-- Next we try a insert. It will not happen if the row exist already.
+		INSERT INTO pmd.aia_lev1 (recnum, sunum, slotnum, segment, date_obs, wavelnth, quality, t_rec_index, fsn)
+		SELECT
+			NEW.recnum,
+			NEW.sunum,
+			NEW.slotnum,
+			NEW.sg_000_file,
+			offset_to_utc(NEW.date__obs),
+			NEW.wavelnth,
+			NEW.quality,
+			NEW.t_rec_index,
+			NEW.fsn
+		WHERE
+			NOT EXISTS (
+				SELECT 1
+				FROM pmd.aia_lev1
+				WHERE
+					t_rec_index=NEW.t_rec_index
+					AND fsn=NEW.fsn
+				)
+		;
+	-- If the insert fail we just keep on going
+	EXCEPTION
+		WHEN OTHERS THEN
+			RAISE WARNING 'Insertion failure for recnum %: %', NEW.recnum, SQLERRM ;
+	END;
+	RETURN NEW;
 END;
 $populate_aia_lev1$ LANGUAGE plpgsql;
 
