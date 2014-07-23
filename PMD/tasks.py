@@ -51,12 +51,13 @@ from PMD.models import DataDownloadRequest, DataLocationRequest, DataDeleteReque
 from PMD.celery_tasks.SftpDownloader import SftpDownloader
 from PMD.celery_tasks.HttpDownloader import HttpDownloader
 from PMD.celery_tasks.DrmsDataLocator import DrmsDataLocator
+from PMD.celery_tasks.Exceptions import FileNotFound
 from PMD.routines.update_fits_header import update_fits_header
 from PMD.routines.create_png import create_png
 
 # TODO add soft limit to requests http://celery.readthedocs.org/en/latest/userguide/workers.html#time-limits
 # http://celery.readthedocs.org/en/latest/userguide/tasks.html#retrying
-# TODO: if data download fails because location is incorrect allow for a get_data_location and a new essay to download the file
+
 # Create Data - Execute a DataDownloadRequest
 @app.task
 def download_data(request):
@@ -81,9 +82,14 @@ def download_data(request):
 			log.debug("No data location found for request %s: %s", request, why)
 		else:
 			# We call the specific data site downloader
-			data_downloaders[request.data_site.name](request)
+			try:
+				data_downloaders[request.data_site.name](request)
+			# If data download fail because of wrong data location retry
+			except FileNotFound:
+				request.remote_file_path = locate_data(request)
+				data_downloaders[request.data_site.name](request)
 			break
-			# TODO if data download fail because of wrong data location retry
+			
 	
 	update_file_meta_data(request)
 
@@ -232,7 +238,7 @@ def create_data_downloader(data_site):
 			return request
 		
 		# setup the task
-		data_downloader.setup(host_name = data_site.data_download_server, user_name = data_site.data_download_user, password = data_site.data_download_password, port = data_site.data_download_port, timeout = data_site.data_download_timeout)
+		data_downloader.setup(server_address = data_site.data_download_server, user_name = data_site.data_download_user, password = data_site.data_download_password, server_port = data_site.data_download_port, timeout = data_site.data_download_timeout)
 		
 		return data_downloader
 	
@@ -244,7 +250,7 @@ def create_data_downloader(data_site):
 			return request
 		
 		# setup the task
-		data_downloader.setup(server = data_site.data_download_server, timeout = data_site.data_download_timeout)
+		data_downloader.setup(server_address = data_site.data_download_server, server_port = data_site.data_download_port, timeout = data_site.data_download_timeout)
 		
 		return data_downloader
 	
