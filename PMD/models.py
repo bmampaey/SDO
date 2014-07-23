@@ -98,19 +98,20 @@ class GlobalConfig(models.Model):
 		except cls.DoesNotExist:
 			cls.set(name, default, help_text = "Automatically created from application, please check and set decription")
 			return default
-		
-		return cls.cast(variable.value, variable.python_type)
+		else:
+			return cls.cast(variable.value, variable.python_type)
 	
 	
 	@classmethod
-	def get_or_warn(cls, name):
+	def get_or_fail(cls, name):
 		try:
 			variable = cls.objects.get(name=name)
 		except cls.DoesNotExist:
-			# TODO warn admins
-			raise Exception("Global configuration variable %s is not set" % name) 
-		
-		return cls.cast(variable.value, variable.python_type)
+			# Hack the exception to add the looked up variable name to the message
+			why.args = ("Global configuration variable %s is not set" % name, ) + why.args
+			raise
+		else:
+			return cls.cast(variable.value, variable.python_type)
 
 
 class DataSite(models.Model):
@@ -304,7 +305,7 @@ class LocalDataLocation(PMDDataLocation):
 	
 	@classmethod
 	def create_location(cls, request):
-		cache = GlobalConfig.get_or_warn("data_cache")
+		cache = GlobalConfig.get_or_fail("data_cache")
 		path = os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment))
 		cls.save_path(request, path)
 		return path
@@ -582,13 +583,13 @@ class ExportDataRequest(UserRequest):
 	
 	@property
 	def export_path(self):
-		cache = GlobalConfig.get_or_warn("export_cache")
+		cache = GlobalConfig.get_or_fail("export_cache")
 		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
 		return path
 	
 	@property
 	def ftp_path(self):
-		cache = GlobalConfig.get_or_warn("export_ftp_url")
+		cache = GlobalConfig.get_or_fail("export_ftp_url")
 		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
 		return path
 	
@@ -642,13 +643,13 @@ class ExportMetaDataRequest(UserRequest):
 	
 	@property
 	def export_path(self):
-		cache = GlobalConfig.get_or_warn("export_cache")
+		cache = GlobalConfig.get_or_fail("export_cache")
 		path = os.path.join(cache, self.user.username, self.name + ".csv")
 		return path
 	
 	@property
 	def ftp_path(self):
-		cache = GlobalConfig.get_or_warn("export_ftp_url")
+		cache = GlobalConfig.get_or_fail("export_ftp_url")
 		path = os.path.join(cache, self.user.username, self.name + ".csv")
 		return path
 	

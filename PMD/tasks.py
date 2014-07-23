@@ -9,6 +9,7 @@ sys.path.append('/home/benjmam/SDO')
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
 from django.conf import settings
 from django.db import transaction
+from django.core import mail
 
 from celery import Celery, group
 from celery.result import AsyncResult
@@ -29,6 +30,7 @@ celery_beat_schedule = {
 }
 
 # Optional configuration, see the application user guide.
+
 app.conf.update(
 	CELERY_TASK_RESULT_EXPIRES=3600,
 	CELERY_TRACK_STARTED = True,
@@ -36,10 +38,11 @@ app.conf.update(
 	CELERY_DISABLE_RATE_LIMITS = True, # To be removed if we set a rate limit on some tasks
 	CELERY_TIMEZONE = 'Europe/Brussels',
 	CELERYBEAT_SCHEDULE = celery_beat_schedule,
-	# Set up emails
+	# Send a mail each time a task fail
 	CELERY_SEND_TASK_ERROR_EMAILS = True,
-	ADMINS = [('Benjamin Mampaey', 'benjamin.mampaey@oma.be'),],
-	SERVER_EMAIL = 'SDO_deamon@' + socket.gethostname(),
+	# Emails settings are overriden by Django email settings.
+	ADMINS = [('Benjamin Mampaey', 'benjamin.mampaey@oma.be'),("production", "production@localhost")],
+	SERVER_EMAIL = "SDO_deamon@" + socket.getfqdn(socket.gethostname()),
 	EMAIL_HOST = 'smtp.oma.be',
 )
 
@@ -255,8 +258,8 @@ def create_data_locator(data_site):
 	# create a DRMS data locator task
 	@app.task(base=DrmsDataLocator, name=data_site.name + "_data_locator", bind=True)
 	def data_locator(self, request):
-		result = self.locate(request.sunum, log)
-		self.update_request(request, result, log)
+		results = self.locate(request.sunum, log)
+		self.update_request(request, results[request.sunum], log)
 		return request
 	
 	# setup the task
@@ -279,25 +282,6 @@ def update_request_status(request, status):
 	request.save()
 
 @app.task
-def warn_admin(message, *args):
-	"Send a message to the administrators"
-	log.critical(message, *args)
-
-@app.task
-def warn_admin_callback(task_id, message = "", *args):
-	"Calls warn_admin as a callback, adding the result of the calling task to the message"
-	# We cannot put a "get" here contrary to the example
-	# but we are sure that when come here, the task is finished
-	result = AsyncResult(task_id).result
-	
-	if result is None:
-		warn_admin(message + " No result", *args)
-	elif issubclass(result, Exception):
-		warn_admin(message + " Exception: %s", *(args + result))
-	else:
-		warn_admin(message + " Result: %s", *(args + result))
-
-@app.task
 def execute_data_download_requests():
 	log.debug("execute_data_download_requests")
 	
@@ -308,13 +292,13 @@ def execute_data_download_requests():
 	with transaction.atomic():
 		for request in DataDownloadRequest.objects.select_for_update(nowait=True).all():
 			if request.status == "NEW":
-				request.status = "RUNNING"
-				request.save()
-				get_data.apply_async((request, ), link=update_request_status.si(request, "DONE"), link_error = warn_admin_callback.s("Data download request %s failed", request))
+				update_request_status(request, "RUNNING")
+				get_data.apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
 			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request_timeout is not None and datetime.now() - request.updated > request_timeout:
-				warn_admin.delay("The following request %s has been running since %s and passed it's timeout %s", request, request.updated, data_download_request_timeout)
+			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+				update_request_status(request, "TIMEOUT")
+				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -330,13 +314,13 @@ def execute_data_location_requests():
 	with transaction.atomic():
 		for request in DataLocationRequest.objects.select_for_update(nowait=True).all():
 			if request.status == "NEW":
-				request.status = "RUNNING"
-				request.save()
-				get_data_location.apply_async((request, ), link=update_request_status.si(request, "DONE"), link_error = warn_admin_callback.s("Data location request %s failed", request))
+				update_request_status(request, "RUNNING")
+				get_data_location.apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
 			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request_timeout is not None and datetime.now() - request.updated > request_timeout:
-				warn_admin.delay("The following request %s has been running since %s and passed it's timeout %s", request, request.updated, data_download_request_timeout)
+			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+				update_request_status(request, "TIMEOUT")
+				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -352,13 +336,13 @@ def execute_data_delete_requests():
 	with transaction.atomic():
 		for request in DataDeleteRequest.objects.select_for_update(nowait=True).all():
 			if request.status == "NEW":
-				request.status = "RUNNING"
-				request.save()
-				delete_data.apply_async((request, ), link=update_request_status.si(request, "DONE"), link_error = warn_admin_callback.s("Data delete request %s failed", request))
+				update_request_status(request, "RUNNING")
+				delete_data.apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
 			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and datetime.now() - request.updated > request_timeout:
-				warn_admin.delay("The following request %s has been running since %s and passed it's timeout %s", request, request.updated, data_download_request_timeout)
+			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+				update_request_status(request, "TIMEOUT")
+				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -375,13 +359,13 @@ def execute_meta_data_update_requests():
 	with transaction.atomic():
 		for request in MetaDataUpdateRequest.objects.select_for_update(nowait=True).all():
 			if request.status == "NEW":
-				request.status = "RUNNING"
-				request.save()
-				update_file_meta_data(request).apply_async((request, ), link=update_request_status.si(request, "DONE"), link_error = warn_admin_callback.s("Meta-data update request %s failed", request))
+				update_request_status(request, "RUNNING")
+				update_file_meta_data(request).apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
 			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request_timeout is not None and datetime.now() - request.updated > request_timeout:
-				warn_admin.delay("The following request %s has been running since %s and passed it's timeout %s", request, request.updated, data_download_request_timeout)
+			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+				update_request_status(request, "TIMEOUT")
+				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -413,8 +397,8 @@ def create_SDO_synoptic_tree(config):
 	"""
 	log.debug("create_SDO_synoptic_tree %s", config)
 	
-	root_folder = GlobalConfig.get_or_warn(config + "_root_folder")
-	frequency = GlobalConfig.get_or_warn(config + "_frequency")	
+	root_folder = GlobalConfig.get_or_fail(config + "_root_folder")
+	frequency = GlobalConfig.get_or_fail(config + "_frequency")	
 	soft_link = GlobalConfig.get(config + "_soft_link", False)
 	start_date = GlobalConfig.get(config + "_start_date", datetime(2010, 02, 11))
 	if start_date  <= datetime(2010, 02, 11):
@@ -447,7 +431,7 @@ def create_SDO_synoptic_tree(config):
 		for desc, record in record_sets[date].iteritems():
 			request = DataDownloadRequest.create_from_record(record)
 			link_path = os.path.join(root_folder, desc, date.strftime("%Y/%m/%d/%H"), record.filename)
-			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link), link_error = warn_admin_callback.s("Data download request %s failed", request))
+			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link))
 	
 	# We save the start date for the next run
 	start_date_config = GlobalConfig(name = config + "_start_date", value = start_date.isoformat(), python_type = "datetime", help_text = "Start date for create_SDO_synoptic_tree %s" % config)
@@ -457,7 +441,7 @@ def create_SDO_synoptic_tree(config):
 @app.task
 def get_preview(request):
 	# Check if the previews already exists 
-	cache = GlobalConfig.get_or_warn("preview_cache")
+	cache = GlobalConfig.get_or_fail("preview_cache")
 	image_path = os.path.splitext(os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment)))[0] + ".png"
 	if os.path.exists(image_path):
 		return image_path
@@ -500,8 +484,8 @@ def execute_export_data_request(request, paginator):
 	log.debug("Found %s records to download", len(request.recnums))
 	update_request_status(request, "RUNNING")
 	
-	# Make the list of data_download_requests
-	data_download_requests = list()
+	# Create all the download and make_link tasks
+	download_and_link_tasks = list()
 	for recnum in request.recnums[:]:
 		try:
 			record = request.data_series.record.objects.get(recnum = recnum)
@@ -511,17 +495,14 @@ def execute_export_data_request(request, paginator):
 		else:
 			data_download_request = DataDownloadRequest.create_from_record(record)
 			data_download_request.expiration_date = request.expiration_date
-			data_download_requests.append((data_download_request, os.path.join(request.export_path, record.filename)))
+			link_path = os.path.join(request.export_path, record.filename)
+			download_and_link_tasks.append(get_data.s(data_download_request) | create_link.s(link_path, soft = False))
 	
-	# For each record we get the data and create a hard link
-	make_link_tasks = list()
-	for data_download_request, link_path in data_download_requests:
-		make_link_tasks.append(get_data.s(data_download_request) | create_link.s(link_path, soft = False))
 	#import pdb; pdb.set_trace()
 	# Execute all the link tasks in parralel, then mark status as done and send email
 	make_link_tasks_group = group(make_link_tasks)
-	make_link_tasks_group.link_error = group(warn_admin_callback.s("Export data request %s succeeded", request) | update_request_status.s(request, "DONE").set(immutable=True))
-	make_link_tasks_group.link_error = group(warn_admin_callback.s("Export data request %s failed", request) | update_request_status.s(request, "FAILED").set(immutable=True))
+	make_link_tasks_group.link = group(update_request_status.si(request, "DONE") | send_mail())
+	make_link_tasks_group.link_error = group(update_request_status.si(request, "FAILED"))
 	
 	# Start the task
 	async_result = make_link_tasks_group.delay()
@@ -530,6 +511,16 @@ def execute_export_data_request(request, paginator):
 	request.task_id = async_result.id
 	request.save()
 
+
+@app.task()
+def send_mail(subject, message, to, copy_to_admins = False):
+	if copy_to_admins:
+		try:
+			to = to + app.settings.ADMINS
+		except Exception:
+			to = [to] + app.settings.ADMINS
+	
+	mail.send_mail(subject, message, None, to)
 
 @app.task
 def execute_export_meta_data_request(request, paginator):
