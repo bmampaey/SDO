@@ -1,0 +1,2 @@
+Your {{ request.type|lower }} for SDO/{{ request.data_series }} submitted on {{ request.requested }} is ready.
+The data is accessible for download at {{ request.ftp_path }} until {{ request.expiration_date }}.

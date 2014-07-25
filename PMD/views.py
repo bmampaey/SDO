@@ -1,4 +1,5 @@
 from datetime import datetime
+import uuid
 
 from django.shortcuts import render, redirect, get_object_or_404, get_list_or_404
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseBadRequest, HttpResponseServerError, HttpResponseForbidden, HttpResponseNotFound
@@ -194,18 +195,19 @@ def export_data(request, data_series_name, recnums, paginator):
 	# Create the request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
 	user_request = ExportDataRequest(user = request.user, data_series = data_series, recnums = recnums)
+	user_request.save()
 	
 	# Execute the request
 	async_result = execute_export_data_request.delay(user_request, paginator)
 	
 	# Save the task id into the request to allow easy cancel
-	user_request.task_id = async_result.id
+	user_request.task_ids = [async_result.id]
 	user_request.save()
 	
 	#execute_export_data_request(user_request, paginator)
 	
 	# Return message about request
-	return render(request, 'PMD/user_request_message.html',  { "request_type": "export data", "ftp_path" : user_request.ftp_path })
+	return render(request, 'PMD/user_request_message.html', { "request": user_request })
 
 
 def export_meta_data(request, data_series_name, recnums, paginator):
@@ -214,18 +216,19 @@ def export_meta_data(request, data_series_name, recnums, paginator):
 	# Create the request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
 	user_request = ExportMetaDataRequest(user = request.user, data_series = data_series, recnums = recnums)
+	user_request.save()
 	#import pdb; pdb.set_trace()
 	# Execute the request
 	async_result = execute_export_meta_data_request.delay(user_request, paginator)
 	
 	# Save the task id into the request to allow easy cancel
-	user_request.task_id = async_result.id
+	user_request.task_ids = [async_result.id]
 	user_request.save()
 	
 	#execute_export_meta_data_request(user_request, paginator)
 	
 	# Return message about request
-	return render(request, 'PMD/user_request_message.html',  { "request_type": "export meta-data", "ftp_path" : user_request.ftp_path })
+	return render(request, 'PMD/user_request_message.html', { "request": user_request })
 
 def export_cutout(request, data_series_name, recnums, paginator):
 	return HttpResponseNotFound("Not yet implemented")

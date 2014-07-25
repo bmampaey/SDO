@@ -1,0 +1,14 @@
+There was some error processing your {{ request.type|lower }} for SDO/{{ request.data_series }} submitted on {{ request.requested }}.
+
+{% if partial %}
+Part of your request is accessible for download at {{ request.ftp_path }} until {{ request.expiration_date }}
+{% endif %}
+
+You can try to re-submit the request or contact the website administrators (they received a copy of this email).
+
+{% if errors %}
+Errors:
+{% for error in errors %}
+ - {{ error }}
+{% endfor %}
+{% endif %}

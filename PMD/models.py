@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import dateutil.parser as date_parser
 import shutil
 import logging
+import uuid
 
 from django.db import models, IntegrityError
 from django.forms.models import model_to_dict
@@ -13,12 +14,15 @@ from django.dispatch import receiver
 
 # djorm-pgarray allow to use postgres arrays
 # To install: "sudo pip install djorm-pgarray"
-from djorm_pgarray.fields import BigIntegerArrayField
+from djorm_pgarray.fields import BigIntegerArrayField, TextArrayField, ArrayField
 
 from celery.task.control import revoke as revoke_task
 
 from DRMS.models import DRMSDataSeries
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
+
+
+# TODO: check how to store array of uuid
 
 # TODO check how to config logging in django
 logging.basicConfig(level = logging.DEBUG, format = "%(levelname)s %(funcName)s %(message)s")
@@ -390,9 +394,9 @@ class SAODataLocation(DrmsDataLocation):
 		db_table = "sao_data_location"
 		verbose_name = "SAO data location"
 
-###############
+######################
 # PMD record models  #
-###############
+######################
 
 class PmdRecord(models.Model):
 	recnum = models.BigIntegerField(primary_key=True)
@@ -475,9 +479,9 @@ class HmiM45SRecord(PmdRecord):
 	def filename(self):
 		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
 
-################
+########################
 # Data request models  #
-################
+########################
 
 class DataRequest(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.PROTECT, db_column = "data_series_name")
@@ -543,9 +547,9 @@ class MetaDataUpdateRequest(DataRequest):
 		db_table = "meta_data_update_request"
 		verbose_name = "Meta-data update request"
 
-################
+########################
 # User request models  #
-################
+########################
 
 class UserRequest(models.Model):
 	user = models.ForeignKey(User, on_delete=models.DO_NOTHING)
@@ -555,7 +559,9 @@ class UserRequest(models.Model):
 	status = models.CharField(help_text = "Request status.", max_length=8, blank=False, null=False, default = "NEW")
 	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now())
 	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
-	task_id = models.CharField(help_text = "Task id.", max_length=36, blank=True, null=True, default = None)
+	#task_id = models.CharField(help_text = "Task id.", max_length=36, blank=True, null=True, default = None)
+	#task_ids = ArrayField(dbtype="uuid", type_cast = lambda x: uuid.UUID(x))
+	task_ids = ArrayField(dbtype="varchar(36)")
 	
 	class Meta:
 		abstract = True
@@ -566,6 +572,15 @@ class UserRequest(models.Model):
 		if self.expiration_date is None:
 			self.expiration_date = self.requested + GlobalConfig.get("default_user_request_retention_time", timedelta(days=60))
 		super(UserRequest, self).save(*args, **kwargs)
+	
+	@property
+	def type(self):
+		return self._meta.verbose_name
+	
+	def revoke(self, terminate=True):
+		if self.task_ids:
+			for task_id in self.task_ids:
+				revoke_task(task_id, terminate=terminate)
 	
 	def __unicode__(self):
 		return u"%s %s" % (self.user, self.requested)
@@ -621,11 +636,11 @@ class ExportDataRequest(UserRequest):
 
 # Register a django signal so that when a ExportDataRequest is deleted, the corresponding files are also deleted
 @receiver(signals.post_delete, sender=ExportDataRequest)
-def delete_export_data_files(sender,  instance, using, **kwargs):
+def delete_export_data_files(sender, instance, using, **kwargs):
 	# Cancel the background task
-	if instance.task_id:
-		log.info("user request %s, cancel task %", instance, instance.task_id)
-		revoke_task(instance.task_id, terminate=True)
+	if instance.task_ids:
+		log.info("user request %s, cancel tasks %", instance, instance.task_ids)
+		instance.revoke()
 	
 	# Delete the files
 	log.info("user request %s, delete files %", instance, instance.export_path)
@@ -669,11 +684,11 @@ class ExportMetaDataRequest(UserRequest):
 
 # Register a django signal so that when a ExportMetaDataRequest is deleted, the corresponding files are also deleted
 @receiver(signals.post_delete, sender=ExportMetaDataRequest)
-def delete_export_meta_data_files(sender,  instance, using, **kwargs):
+def delete_export_meta_data_files(sender, instance, using, **kwargs):
 	# Cancel the background task
-	if instance.task_id:
-		log.info("user request %s, cancel task %", instance, instance.task_id)
-		revoke_task(instance.task_id, terminate=True)
+	if instance.task_ids:
+		log.info("user request %s, cancel tasks %", instance, instance.task_ids)
+		instance.revoke()
 	print "poueeet"
 	# Delete the files
 	log.info("user request %s, delete files %", instance, instance.export_path)

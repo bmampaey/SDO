@@ -10,8 +10,9 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
 from django.conf import settings
 from django.db import transaction
 from django.core import mail
+from django.template.loader import render_to_string
 
-from celery import Celery, group
+from celery import Celery, group, chord
 from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 
@@ -41,9 +42,9 @@ app.conf.update(
 	# Send a mail each time a task fail
 	CELERY_SEND_TASK_ERROR_EMAILS = True,
 	# Emails settings are overriden by Django email settings.
-	ADMINS = [('Benjamin Mampaey', 'benjamin.mampaey@oma.be'),("production", "production@localhost")],
-	SERVER_EMAIL = "SDO_deamon@" + socket.getfqdn(socket.gethostname()),
-	EMAIL_HOST = 'smtp.oma.be',
+	ADMINS = settings.ADMINS,
+	SERVER_EMAIL = settings.DEFAULT_FROM_EMAIL,
+	EMAIL_HOST = settings.EMAIL_HOST,
 )
 
 from PMD.models import GlobalConfig, DataSite, DataSeries, LocalDataLocation
@@ -462,6 +463,7 @@ def get_preview(request):
 	return image_path
 
 # TODO add soft limit to requests http://celery.readthedocs.org/en/latest/userguide/workers.html#time-limits
+# TODO send mail when too big
 @app.task
 def execute_export_data_request(request, paginator):
 	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
@@ -506,27 +508,52 @@ def execute_export_data_request(request, paginator):
 	
 	#import pdb; pdb.set_trace()
 	# Execute all the link tasks in parralel, then mark status as done and send email
-	make_link_tasks_group = group(make_link_tasks)
-	make_link_tasks_group.link = group(update_request_status.si(request, "DONE") | send_mail())
-	make_link_tasks_group.link_error = group(update_request_status.si(request, "FAILED"))
+	download_and_link_tasks_chord = chord(download_and_link_tasks, post_execute_export_data_request.s(request))
 	
 	# Start the task
-	async_result = make_link_tasks_group.delay()
+	async_result = download_and_link_tasks_chord.delay()
 	
 	# Save the task id into the request to allow easy cancel
-	request.task_id = async_result.id
+	# async_result.save_group() # Not yet implemented See http://celery.readthedocs.org/en/latest/reference/celery.result.html#celery.result.GroupResult
+	# Once it is implemented it can be used to revoque requests (see views) and get error status
+	request.task_ids.append(async_result.id)
+	request.task_ids.extend([child.id for child in async_result.parent.children])
 	request.save()
+
+@app.task
+def post_execute_export_data_request(results, request):
+	log.debug("post_execute_export_data_request results %s request %s", results, request)
+	
+	# Check if there was any error
+	errors = ""
+	for result in results:
+		if isinstance(result, Exception):
+			errors.append(str(result))
+	
+	if errors:
+		update_request_status(request, "FAILED")
+		mail_content = render_to_string('PMD/user_request_failure_email_content.txt', {'request': request, 'errors': errors, 'partial' : len(errors) < len(results[0])})
+		mail_subject = render_to_string('PMD/user_request_failure_email_subject.txt', {'request': request})
+		send_email(mail_subject, mail_content, request.user.email, copy_to_admins = True)
+	else:
+		update_request_status(request, "DONE")
+		mail_content = render_to_string('PMD/user_request_success_email_content.txt', {'request': request})
+		mail_subject = render_to_string('PMD/user_request_success_email_subject.txt', {'request': request})
+		send_email(mail_subject, mail_content, request.user.email, copy_to_admins = False)
 
 
 @app.task()
-def send_mail(subject, message, to, copy_to_admins = False):
-	if copy_to_admins:
-		try:
-			to = to + app.settings.ADMINS
-		except Exception:
-			to = [to] + app.settings.ADMINS
+def send_email(subject, content, to, copy_to_admins = False):
+	log.debug("send_email %s, %s, %s", subject, content, to)
+	if not isinstance(to, (list, tuple)):
+		to = [to]
 	
-	mail.send_mail(subject, message, None, to)
+	if copy_to_admins:
+		to = list(to)
+		for admin in settings.ADMINS:
+			to.append(admin[1])
+	
+	mail.send_mail(subject.replace("\n", ""), content, None, to)
 
 @app.task
 def execute_export_meta_data_request(request, paginator):
@@ -565,11 +592,18 @@ def execute_export_meta_data_request(request, paginator):
 	except Exception, why:
 		log.error("Could not write csv file %s: %s", request.export_path, why)
 		update_request_status(request, "FAILED")
-		# TODO send mail to user
+		# send mail to user
+		mail_content = render_to_string('PMD/user_request_failure_email_content.txt', {'request': request})
+		mail_subject = render_to_string('PMD/user_request_failure_email_subject.txt', {'request': request})
+		send_email(mail_subject, mail_content, request.user.email, copy_to_admins = True)
 	else:
 		log.info("Succesfully wrote csv file for request %s to %s ", request, request.export_path)
-		update_request_status(request, "SUCCESS")
-		# TODO send mail to user
+		update_request_status(request, "DONE")
+		# send mail to user
+		mail_content = render_to_string('PMD/user_request_success_email_content.txt', {'request': request})
+		mail_subject = render_to_string('PMD/user_request_success_email_subject.txt', {'request': request})
+		send_email(mail_subject, mail_content, request.user.email)
+
 
 if __name__ == '__main__':
 	app.start()

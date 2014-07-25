@@ -101,11 +101,9 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 STATIC_URL = '/static/'
 
-STATICFILES_DIRS = (
-	os.path.join(BASE_DIR, "static"),
-)
+STATIC_ROOT = os.path.join(BASE_DIR, "static")
 
 # In production, this must change
-MEDIA_URL = '/tmp/sdo_cache/'
+MEDIA_URL = '/data/'
 
-MEDIA_ROOT = '/tmp/sdo_cache'
+MEDIA_ROOT = '/data'

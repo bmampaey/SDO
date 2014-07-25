@@ -1,0 +1,1 @@
+There was some error processing your {{ request.type|lower }} for SDO/{{ request.data_series }} submitted on {{ request.requested }}.
