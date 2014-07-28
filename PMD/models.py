@@ -139,7 +139,7 @@ class DataSite(models.Model):
 	
 	class Meta:
 		db_table = "data_site"
-		ordering = ["priority"]
+		ordering = ["-priority"]
 		verbose_name = "Data site"
 		verbose_name_plural = "Data sites"
 	
@@ -496,7 +496,7 @@ class DataRequest(models.Model):
 	
 	class Meta:
 		abstract = True
-		ordering = ["priority", "requested"]
+		ordering = ["-priority", "requested"]
 		get_latest_by = "requested"
 	
 	def __unicode__(self):

@@ -87,6 +87,7 @@ def download_data(request):
 				data_downloaders[request.data_site.name](request)
 			# If data download fail because of wrong data location retry
 			except FileNotFound:
+				# TODO if locate data does not find the path (raise exception) just pass the server
 				request.remote_file_path = locate_data(request)
 				data_downloaders[request.data_site.name](request)
 			break
@@ -198,7 +199,7 @@ def get_prefered_datasites(request):
 		if request.data_series.forced_datasite:
 			return [request.data_series.forced_datasite]
 		else:
-			return DataSite.objects.order_by('-priority')
+			return DataSite.objects.filter(enabled=True).order_by('-priority')
 
 @app.task
 def get_file_path(request, local_data_site = False):
