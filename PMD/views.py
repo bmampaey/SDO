@@ -122,7 +122,7 @@ def download_data(request, data_series_name, recnum):
 		return HttpResponseServerError(str(why))
 	else:
 		# Send the file
-		response = HttpResponse(open(path,"rb").read(), mimetype="application/x-download")
+		response = HttpResponse(open(path,"rb").read(), content_type="application/x-download")
 		response["Content-Disposition"] = "attachment;filename="+record.filename
 		return response
 

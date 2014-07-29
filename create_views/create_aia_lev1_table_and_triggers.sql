@@ -100,3 +100,5 @@ FROM (
    FROM aia.lev1
 ) AS foo
 WHERE recnum = latest_recnum;
+
+

@@ -118,45 +118,45 @@ class DrmsDataLocator(Task):
 		
 		return results
 		
-		def update_request(self, request, result, log = None):
-			'''Update a data location request with the result of a call_jsoc_fetch'''
-			
-			if 'path' not in result or result['path'].upper() == "NA":
-				raise UpdateError("No path found in result %s for request %s" % (result, request))
-			
-			elif 'susize' not in result:
-				# Because we don't know how to cope we just throw an exception
-				raise UpdateError("No susize found in result %s for request %s" % (result, request))
-			
-			# Do we need those additional checks ?
-			elif 'sustatus' not in result:
-				# Because we don't know how to cope we just throw an exception
-				raise UpdateError("No sustatus found in result %s for request %s" % (result, request))
-			
-			elif result['sustatus'].upper() != "Y":
-				# Because we don't know how to cope we just throw an exception
-				raise UpdateError("Status different than Y in result %s for request %s" % (result, request))
-			
-			elif 'sunum' not in result:
-				# Because we don't know how to cope we just throw an exception
-				raise UpdateError("No sunum found in result %s for request %s" % (result, request))
-			
-			elif result['sunum'] != str(request.sunum):
-				# Because we don't know how to cope we just throw an exception
-				raise UpdateError("Mismatch sunum in result %s for request %s" % (result, request))
-			
-			elif 'series' not in result:
-				# Because we don't know how to cope we just throw an exception
-				raise UpdateError("No series found in result %s for request %s" % (result, request))
-			
-			elif result['series'] != request.data_series.drms_series.name:
-				# Because we don't know how to cope we just throw an exception
-				raise UpdateError("Mismatch series name in result %s for request %s" % (result, request))
-			
-			else:
-				if log is not None:
-					log.debug("Found path %s for sunum %s with size %s", result['path'], request.sunum, result['susize'])
-				request.path = result['path']
-				request.size = int(result['susize'])
+	def update_request(self, request, result, log = None):
+		'''Update a data location request with the result of a call_jsoc_fetch'''
+		
+		if 'path' not in result or result['path'].upper() == "NA":
+			raise UpdateError("No path found in result %s for request %s" % (result, request))
+		
+		elif 'susize' not in result:
+			# Because we don't know how to cope we just throw an exception
+			raise UpdateError("No susize found in result %s for request %s" % (result, request))
+		
+		# Do we need those additional checks ?
+		elif 'sustatus' not in result:
+			# Because we don't know how to cope we just throw an exception
+			raise UpdateError("No sustatus found in result %s for request %s" % (result, request))
+		
+		elif result['sustatus'].upper() != "Y":
+			# Because we don't know how to cope we just throw an exception
+			raise UpdateError("Status different than Y in result %s for request %s" % (result, request))
+		
+		elif 'sunum' not in result:
+			# Because we don't know how to cope we just throw an exception
+			raise UpdateError("No sunum found in result %s for request %s" % (result, request))
+		
+		elif result['sunum'] != str(request.sunum):
+			# Because we don't know how to cope we just throw an exception
+			raise UpdateError("Mismatch sunum in result %s for request %s" % (result, request))
+		
+		elif 'series' not in result:
+			# Because we don't know how to cope we just throw an exception
+			raise UpdateError("No series found in result %s for request %s" % (result, request))
+		
+		elif result['series'].lower() != request.data_series.drms_series.name.lower():
+			# Because we don't know how to cope we just throw an exception
+			raise UpdateError("Mismatch series name in result %s for request %s" % (result, request))
+		
+		else:
+			if log is not None:
+				log.debug("Found path %s for sunum %s with size %s", result['path'], request.sunum, result['susize'])
+			request.path = result['path']
+			request.size = int(result['susize'])
 
 

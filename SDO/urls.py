@@ -14,7 +14,8 @@ urlpatterns = patterns('',
     url(r'^PMD/', include('PMD.urls', namespace="PMD")),
 )
 
-# TODO remove in production
-from django.conf.urls.static import static
+# Only when debugging
 from django.conf import settings
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG:
+	from django.conf.urls.static import static
+	urlpatterns += static(settings.DATA_URL, document_root=settings.DATA_ROOT)

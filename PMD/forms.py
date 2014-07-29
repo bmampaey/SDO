@@ -8,10 +8,9 @@ from django.http import QueryDict
 
 # See http://django-tastypie.readthedocs.org/en/latest/paginator.html why it is important for postgres to have a special paginator
 from PMD.paginators import EstimatedCountPaginator
-from PMD.models import DataSeries
+from PMD.models import DataSeries, GlobalConfig
 from PMD.cadence_field import CadenceField
 
-MAX_NUMBER_ROWS = 20
 AIA_WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335, 1600, 1700, 4500]
 
 
@@ -68,7 +67,7 @@ class DataSeriesSearchForm(forms.Form):
 	def get_search_result_table(cls, request_data):
 		"""Return a dict with all the necessary info to create a table of results"""
 		# THIS COULD GO INTO THE VIEW
-		# import pdb; pdb.set_trace()
+		import pdb; pdb.set_trace()
 		# Get the cleaned data from the request_data
 		cleaned_data = cls.get_cleaned_data(request_data)
 		
@@ -76,7 +75,7 @@ class DataSeriesSearchForm(forms.Form):
 		query_set = cls.get_query_set(cleaned_data)
 		
 		# Get the paginator
-		paginator = cls.get_paginator(query_set, request_data.get("limit", MAX_NUMBER_ROWS), cleaned_data["cadence"])
+		paginator = cls.get_paginator(query_set, request_data.get("limit", GlobalConfig.get("search_result_table_row_limit", 20)), cleaned_data["cadence"])
 		
 		# Get the page
 		page_number = request_data.get("page", 1)

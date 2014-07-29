@@ -69,7 +69,6 @@ class GlobalConfig(models.Model):
 		elif python_type == "timedelta":
 			return timedelta(seconds=float(value))
 		else:
-			# TODO warn admins
 			raise Exception("Unknown python type %" +  python_type)
 	
 	@classmethod
@@ -243,7 +242,7 @@ class DataSeries(models.Model):
 
 class PMDDataLocation(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.PROTECT, db_column = "data_series_name")
-	recnum = models.IntegerField(help_text = "JSOC Record number", blank=False, null=False, default=0)
+	recnum = models.BigIntegerField(help_text = "JSOC Record number", blank=False, null=False, default=0)
 	path = models.CharField(help_text = "Path of the data at the data site.", max_length=255, blank=False, null=False)
 	
 	class Meta:
@@ -488,7 +487,7 @@ class DataRequest(models.Model):
 	sunum = models.BigIntegerField(help_text = "JSOC Storage Unit number", blank=False, null=False)
 	slotnum = models.IntegerField(help_text = "JSOC Slot number", blank=False, null=False, default=0)
 	segment = models.CharField(help_text = "JSOC Segment name.", max_length=255, blank=False, null=False)
-	recnum = models.IntegerField(help_text = "JSOC Record number", blank=True, null=True, default=0)
+	recnum = models.BigIntegerField(help_text = "JSOC Record number", blank=True, null=True, default=0)
 	status = models.CharField(help_text = "Request status.", max_length=8, blank=False, null=False, default = "NEW")
 	priority = models.PositiveIntegerField(help_text = "Priority of execution. The higher the value, the higher the priority.", default=0, blank=True)
 	requested = models.DateTimeField(help_text = "Date of request.", null=False, auto_now_add = True)
@@ -542,6 +541,7 @@ class DataDeleteRequest(DataRequest):
 		verbose_name = "Data delete request"
 
 class MetaDataUpdateRequest(DataRequest):
+	new_recnum = models.BigIntegerField(help_text = "JSOC Record number", blank=True, null=True, default=0)
 	
 	class Meta(DataRequest.Meta):
 		db_table = "meta_data_update_request"

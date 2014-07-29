@@ -103,7 +103,7 @@ STATIC_URL = '/static/'
 
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 
-# In production, this must change
-MEDIA_URL = '/data/'
+# Must match the data folder
+DATA_URL = '/data/'
 
-MEDIA_ROOT = '/data'
+DATA_ROOT = '/data'

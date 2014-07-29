@@ -65,7 +65,7 @@ def download_data(request):
 	log.debug("download_data %s", request)
 	# Get the local path where to download the file to
 	request.local_file_path = LocalDataLocation.create_location(request)
-	
+	import pdb; pdb.set_trace()
 	# Create the directory tree
 	try:
 		os.makedirs(os.path.dirname(request.local_file_path))
@@ -85,12 +85,18 @@ def download_data(request):
 			# We call the specific data site downloader
 			try:
 				data_downloaders[request.data_site.name](request)
-			# If data download fail because of wrong data location retry
+			# If data download fail because of wrong data location forc a locate data
 			except FileNotFound:
-				# TODO if locate data does not find the path (raise exception) just pass the server
-				request.remote_file_path = locate_data(request)
-				data_downloaders[request.data_site.name](request)
-			break
+				# If locate data does not find the path (raise exception) just pass the server
+				try:
+					request.remote_file_path = locate_data(request)
+				except Exception, why:
+					pass
+				else:
+					data_downloaders[request.data_site.name](request)
+			else:
+				# We have the file
+				break
 			
 	
 	update_file_meta_data(request)
@@ -98,6 +104,7 @@ def download_data(request):
 # Read Data
 @app.task
 def get_data(request):
+	
 	log.debug("get_data %s", request)
 	# Try to get the file path for the local data site, otherwise download the data
 	try:
@@ -288,7 +295,7 @@ def update_request_status(request, status):
 	
 	request.status = status
 	request.save()
-
+# TODO add link_error to data requests and remove timeout as we will use soft time outs
 @app.task
 def execute_data_download_requests():
 	log.debug("execute_data_download_requests")
@@ -355,7 +362,8 @@ def execute_data_delete_requests():
 			elif request.status == "DONE":
 				request.delete()
 
-
+# TODO check how to get old recnum vs new recnum
+# The old file should be deleted from datalocation and disk
 @app.task
 def execute_meta_data_update_requests():
 	log.debug("execute_meta_data_update_requests")
@@ -406,7 +414,7 @@ def create_SDO_synoptic_tree(config):
 	log.debug("create_SDO_synoptic_tree %s", config)
 	
 	root_folder = GlobalConfig.get_or_fail(config + "_root_folder")
-	frequency = GlobalConfig.get_or_fail(config + "_frequency")	
+	frequency = GlobalConfig.get_or_fail(config + "_frequency")
 	soft_link = GlobalConfig.get(config + "_soft_link", False)
 	start_date = GlobalConfig.get(config + "_start_date", datetime(2010, 02, 11))
 	if start_date  <= datetime(2010, 02, 11):
@@ -532,11 +540,13 @@ def post_execute_export_data_request(results, request):
 			errors.append(str(result))
 	
 	if errors:
+		log.error("export_data_request %s FAILED: %s", request, str(errors))
 		update_request_status(request, "FAILED")
 		mail_content = render_to_string('PMD/user_request_failure_email_content.txt', {'request': request, 'errors': errors, 'partial' : len(errors) < len(results[0])})
 		mail_subject = render_to_string('PMD/user_request_failure_email_subject.txt', {'request': request})
 		send_email(mail_subject, mail_content, request.user.email, copy_to_admins = True)
 	else:
+		log.info("export_data_request %s SUCCESSFULL. Wrote files to %s ", request, request.export_path)
 		update_request_status(request, "DONE")
 		mail_content = render_to_string('PMD/user_request_success_email_content.txt', {'request': request})
 		mail_subject = render_to_string('PMD/user_request_success_email_subject.txt', {'request': request})
@@ -591,20 +601,43 @@ def execute_export_meta_data_request(request, paginator):
 				values = request.data_series.get_header_values(recnum)
 				writer.writerow([values[column] for column in columns])
 	except Exception, why:
-		log.error("Could not write csv file %s: %s", request.export_path, why)
+		log.error("export_meta_data_request %s FAILED: %s", request, why)
 		update_request_status(request, "FAILED")
 		# send mail to user
 		mail_content = render_to_string('PMD/user_request_failure_email_content.txt', {'request': request})
 		mail_subject = render_to_string('PMD/user_request_failure_email_subject.txt', {'request': request})
 		send_email(mail_subject, mail_content, request.user.email, copy_to_admins = True)
 	else:
-		log.info("Succesfully wrote csv file for request %s to %s ", request, request.export_path)
+		log.info("export_meta_data_request %s SUCCESSFULL. Wrote files to %s ", request, request.export_path)
 		update_request_status(request, "DONE")
 		# send mail to user
 		mail_content = render_to_string('PMD/user_request_success_email_content.txt', {'request': request})
 		mail_subject = render_to_string('PMD/user_request_success_email_subject.txt', {'request': request})
 		send_email(mail_subject, mail_content, request.user.email)
 
+@app.task
+def sanitize_local_data_location():
+	log.debug("sanitize_local_data_location")
+	data_location_ids = LocalDataLocation.objects.values("id")
+	# Check for each local data location registered if that the files exists
+	# Rows are locked one by one to minimize service interruption
+	for data_location_id in data_location_ids:
+		with transaction.atomic():
+			try:
+				data_location = LocalDataLocation.objects.select_for_update(nowait=True).get(id=data_location_id)
+			except LocalDataLocation.DoesNotExist:
+				pass
+			else:
+				if not check_file_exists(data_location.path):
+					log.info("Cleaning up LocalDataLocation, missing file for %s", data_location)
+					data_location.delete()
+	
+	# Check that total cache usage is below limit
+	# Cleanup if necessary
+	
+	# Check that total export cache is below limit
+	# Cleanup if necessary
+	
 
 if __name__ == '__main__':
 	app.start()

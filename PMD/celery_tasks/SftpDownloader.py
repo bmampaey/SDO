@@ -32,7 +32,7 @@ class SftpDownloader(Task):
 				if self.password is None: # We let paramiko try to connect to a authentification agent or find a private key_file in ~/.ssh
 					self.connection.connect(self.server_address, port = self.server_port, username = self.user_name, timeout = self.timeout)
 				
-				elif os.path.isfile(password): # If password is a file we assume it is a key_filename
+				elif os.path.isfile(self.password): # If password is a file we assume it is a key_filename
 					self.connection.connect(self.server_address, port = self.server_port, username = self.user_name, key_filename = self.password, timeout = self.timeout)
 				
 				else: # If a private key_file in ~/.ssh needs a password it will be used, otherwise it will use the password directly
@@ -70,7 +70,7 @@ class SftpDownloader(Task):
 		try:
 			sftp = connection.open_sftp()
 			sftp.get_channel().settimeout(self.timeout)
-			sftp.get(source, destination) #TODO quid of missing file
+			sftp.get(source, destination)
 			sftp.close()
 		
 		except socket.timeout, why:
