@@ -153,16 +153,9 @@ def search_result_action(request, action_type, data_series_name):
 	
 	# If all is selected , we create a paginator like for the search to extract the recnums 
 	if all_selected:
-		# Get the query set coresponding to the data search 
 		try:
 			cleaned_data = data_series_search_form.get_cleaned_data(request.GET)
-			query_set = data_series_search_form.get_query_set(cleaned_data)
-			if recnums:
-				# Exclude the (un)selected recnums
-				query_set = query_set.exclude(recnum__in=recnums)
-			# Get the paginator
-			paginator = data_series_search_form.get_paginator(query_set, request.GET.get("limit", 100), request.GET.get("cadence", 0))
-			recnums = []
+			paginator = data_series_search_form.get_paginator(cleaned_data, request.GET.get("limit", 100))
 		except Exception, why:
 			return HttpResponseBadRequest(str(why))
 	
@@ -194,17 +187,15 @@ def export_data(request, data_series_name, recnums, paginator):
 	
 	# Create the request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
-	user_request = ExportDataRequest(user = request.user, data_series = data_series, recnums = recnums)
+	user_request = ExportDataRequest(user = request.user, data_series = data_series)
 	user_request.save()
 	
 	# Execute the request
-	async_result = execute_export_data_request.delay(user_request, paginator)
+	async_result = execute_export_data_request.delay(user_request, recnums, paginator)
 	
 	# Save the task id into the request to allow easy cancel
 	user_request.task_ids = [async_result.id]
 	user_request.save()
-	
-	#execute_export_data_request(user_request, paginator)
 	
 	# Return message about request
 	return render(request, 'PMD/user_request_message.html', { "request": user_request })
@@ -219,13 +210,11 @@ def export_meta_data(request, data_series_name, recnums, paginator):
 	user_request.save()
 	#import pdb; pdb.set_trace()
 	# Execute the request
-	async_result = execute_export_meta_data_request.delay(user_request, paginator)
+	async_result = execute_export_meta_data_request.delay(user_request, recnums, paginator)
 	
 	# Save the task id into the request to allow easy cancel
 	user_request.task_ids = [async_result.id]
 	user_request.save()
-	
-	#execute_export_meta_data_request(user_request, paginator)
 	
 	# Return message about request
 	return render(request, 'PMD/user_request_message.html', { "request": user_request })
@@ -293,4 +282,5 @@ def delete_user_request(request, request_type, request_id):
 		# Files are deleted and task cancelled by django signal http://stackoverflow.com/questions/1534986/how-do-i-override-delete-on-a-model-and-have-it-still-work-with-related-delete
 		user_request.delete() 
 	
-	return HttpResponse("The request %s has been deleted. Thank you for freeing some disk space." % user_request.name)
+	# Send the response
+	return render(request, 'PMD/delete_user_request.html', {"request": user_request})

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
+from datetime import datetime, timedelta
 import dateutil.parser as date_parser
 
 from django import forms
 from django.core.paginator import EmptyPage, PageNotAnInteger
 from django.http import QueryDict
 
-# See http://django-tastypie.readthedocs.org/en/latest/paginator.html why it is important for postgres to have a special paginator
-from PMD.paginators import EstimatedCountPaginator
+
+from PMD.paginators import EstimatedCountPaginator, CadencePaginator
 from PMD.models import DataSeries, GlobalConfig
 from PMD.cadence_field import CadenceField
 
@@ -54,28 +54,26 @@ class DataSeriesSearchForm(forms.Form):
 		return cleaned_data
 	
 	@classmethod
-	def get_paginator(cls, query_set, limit, cadence = 0):
+	def get_paginator(cls, cleaned_data, limit):
 		""" Create a paginator of records """
 		# When cadence is specified we need a custom implementation of paginator
 		# But only if cadence is big enough
-		if cadence and cadence > cls.minimal_cadence:
-			raise Exception("Cadence is not yet implemented, please unset it.")
+		cadence = cleaned_data.get('cadence', 0)
+		if cadence > cls.minimal_cadence:
+			return CadencePaginator(cls.get_cadence_query_sets(cleaned_data), timedelta(seconds=cadence), limit, allow_empty_first_page = False, orphans = limit/2)
 		else:
-			return EstimatedCountPaginator(query_set, limit, allow_empty_first_page = False, orphans = limit/2)
-
+			return EstimatedCountPaginator(cls.get_query_set(cleaned_data), limit, allow_empty_first_page = False, orphans = limit/2)
+	
 	@classmethod
 	def get_search_result_table(cls, request_data):
 		"""Return a dict with all the necessary info to create a table of results"""
 		# THIS COULD GO INTO THE VIEW
-		import pdb; pdb.set_trace()
+		#import pdb; pdb.set_trace()
 		# Get the cleaned data from the request_data
 		cleaned_data = cls.get_cleaned_data(request_data)
 		
-		# Get the query set
-		query_set = cls.get_query_set(cleaned_data)
-		
 		# Get the paginator
-		paginator = cls.get_paginator(query_set, request_data.get("limit", GlobalConfig.get("search_result_table_row_limit", 20)), cleaned_data["cadence"])
+		paginator = cls.get_paginator(cleaned_data, request_data.get("limit", GlobalConfig.get("search_result_table_row_limit", 12)))
 		
 		# Get the page
 		page_number = request_data.get("page", 1)
@@ -160,11 +158,30 @@ class AiaLev1SearchForm(DataSeriesSearchForm):
 		if len(wavelengths) == 0:
 			raise Exception("For AIA you need to select at least one wavelength")
 		
-		# Add a condition is only a subset of the wavelength was selected
+		# Add a condition if only a subset of the wavelength was selected
 		elif len(set(AIA_WAVELENGTHS) - wavelengths) > 0:
 			query_set = query_set.filter(wavelnth__in=wavelengths)
 		
 		return query_set
+	
+	
+	@classmethod
+	def get_cadence_query_sets(cls, cleaned_data):
+		""" Creates a QuerySet for the data series with record table corresponding to the form record_table"""
+		
+		query_set = cls.get_query_set(cleaned_data)
+		
+		wavelengths = set(cleaned_data.get('wavelengths', []))
+		if len(wavelengths) == 0:
+			raise Exception("For AIA you need to select at least one wavelength")
+		
+		query_sets = list()
+		# For aia.lev1 it is 1 query_set per wavelength
+		
+		for wavelength in wavelengths:
+			query_sets.append(query_set.filter(wavelnth = wavelength))
+		
+		return query_sets
 	
 	
 	@classmethod
@@ -202,6 +219,12 @@ class HmiM45SSearchForm(DataSeriesSearchForm):
 		return query_set
 	
 	@classmethod
+	def get_cadence_query_sets(cls, cleaned_data):
+		""" Creates a QuerySet for the data series with record table corresponding to the form record_table"""
+		
+		return [cls.get_query_set(cleaned_data)]
+	
+	@classmethod
 	def get_headers_rows(cls, records):
 		headers = ["Date", "Quality"]
 		rows = list()
@@ -233,6 +256,12 @@ class HmiIc45SSearchForm(DataSeriesSearchForm):
 			query_set = query_set.filter(date_obs__lt = cleaned_data['end_date'])
 		
 		return query_set
+	
+	@classmethod
+	def get_cadence_query_sets(cls, cleaned_data):
+		""" Creates a QuerySet for the data series with record table corresponding to the form record_table"""
+		
+		return [cls.get_query_set(cleaned_data)]
 	
 	@classmethod
 	def get_headers_rows(cls, records):

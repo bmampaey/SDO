@@ -65,7 +65,7 @@ def download_data(request):
 	log.debug("download_data %s", request)
 	# Get the local path where to download the file to
 	request.local_file_path = LocalDataLocation.create_location(request)
-	import pdb; pdb.set_trace()
+	#import pdb; pdb.set_trace()
 	# Create the directory tree
 	try:
 		os.makedirs(os.path.dirname(request.local_file_path))
@@ -295,6 +295,7 @@ def update_request_status(request, status):
 	
 	request.status = status
 	request.save()
+
 # TODO add link_error to data requests and remove timeout as we will use soft time outs
 @app.task
 def execute_data_download_requests():
@@ -473,18 +474,19 @@ def get_preview(request):
 
 # TODO add soft limit to requests http://celery.readthedocs.org/en/latest/userguide/workers.html#time-limits
 # TODO send mail when too big
-@app.task
-def execute_export_data_request(request, paginator):
+@app.task(bind=True)
+def execute_export_data_request(self, request, recnums, paginator):
 	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
 	#import pdb; pdb.set_trace()
 	
+	# Save the task id into the user request to allow easy cancel
+	request.task_ids = [self.request.id]
+	update_request_status(request, "STARTED")
+	
 	# To avoid user filling up our system, we check that the request is reasonable
 	max_export_data_request_size =  GlobalConfig.get("max_export_data_request_size", 100 * 1024 * 1024 * 1024)
-	if request.estimated_size() > max_export_data_request_size:
-		update_request_status(request, "TOO BIG")
-		raise Exception("User request %s is larger than maximum allowed size") 
 	
-	# Add the recnums from the paginator to the request
+	# Add the recnums from the paginator to the request (excluding recnums)
 	if paginator is not None:
 		for page_number in paginator.page_range:
 			try:
@@ -493,10 +495,17 @@ def execute_export_data_request(request, paginator):
 				pass
 			else:
 				for obj in page.object_list:
-					request.recnums.append(obj.recnum)
+					if obj.recnum not in recnums:
+						request.recnums.append(obj.recnum)
 				if request.estimated_size() > max_export_data_request_size:
 					update_request_status(request, "TOO BIG")
-					raise Exception("User request %s is larger than maximum allowed size") 
+					raise Exception("User request %s %s is larger than maximum allowed size" % (request.type, request.id)) 
+	
+	else:
+		request.recnums = recnums
+		if request.estimated_size() > max_export_data_request_size:
+			update_request_status(request, "TOO BIG")
+			raise Exception("User request %s %s is larger than maximum allowed size" % (request.type, request.id)) 
 	
 	log.debug("Found %s records to download", len(request.recnums))
 	update_request_status(request, "RUNNING")
@@ -545,6 +554,7 @@ def post_execute_export_data_request(results, request):
 		mail_content = render_to_string('PMD/user_request_failure_email_content.txt', {'request': request, 'errors': errors, 'partial' : len(errors) < len(results[0])})
 		mail_subject = render_to_string('PMD/user_request_failure_email_subject.txt', {'request': request})
 		send_email(mail_subject, mail_content, request.user.email, copy_to_admins = True)
+	
 	else:
 		log.info("export_data_request %s SUCCESSFULL. Wrote files to %s ", request, request.export_path)
 		update_request_status(request, "DONE")
@@ -566,11 +576,15 @@ def send_email(subject, content, to, copy_to_admins = False):
 	
 	mail.send_mail(subject.replace("\n", ""), content, None, to)
 
-@app.task
-def execute_export_meta_data_request(request, paginator):
+@app.task(bind=True)
+def execute_export_meta_data_request(self, request, recnums, paginator):
 	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
 	
-	# Add the recnums from the paginator to the request
+	# Save the task id into the user request to allow easy cancel
+	request.task_ids = [self.request.id]
+	update_request_status(request, "STARTED")
+	
+	# Add the recnums from the paginator to the request (excluding recnums)
 	if paginator is not None:
 		for page_number in paginator.page_range:
 			try:
@@ -579,7 +593,10 @@ def execute_export_meta_data_request(request, paginator):
 				pass
 			else:
 				for obj in page.object_list:
-					request.recnums.append(obj.recnum)
+					if obj.recnum not in recnums:
+						request.recnums.append(obj.recnum)
+	else:
+		request.recnums = recnums
 	
 	log.debug("Found %s records", len(request.recnums))
 	update_request_status(request, "RUNNING")
@@ -600,6 +617,7 @@ def execute_export_meta_data_request(request, paginator):
 			for recnum in request.recnums:
 				values = request.data_series.get_header_values(recnum)
 				writer.writerow([values[column] for column in columns])
+	
 	except Exception, why:
 		log.error("export_meta_data_request %s FAILED: %s", request, why)
 		update_request_status(request, "FAILED")
@@ -607,6 +625,7 @@ def execute_export_meta_data_request(request, paginator):
 		mail_content = render_to_string('PMD/user_request_failure_email_content.txt', {'request': request})
 		mail_subject = render_to_string('PMD/user_request_failure_email_subject.txt', {'request': request})
 		send_email(mail_subject, mail_content, request.user.email, copy_to_admins = True)
+	
 	else:
 		log.info("export_meta_data_request %s SUCCESSFULL. Wrote files to %s ", request, request.export_path)
 		update_request_status(request, "DONE")
