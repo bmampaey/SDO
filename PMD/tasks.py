@@ -33,6 +33,7 @@ celery_beat_schedule = {
 # Optional configuration, see the application user guide.
 
 app.conf.update(
+	CELERY_ACCEPT_CONTENT = ['json'],
 	CELERY_TASK_RESULT_EXPIRES=3600,
 	CELERY_TRACK_STARTED = True,
 	CELERY_ACKS_LATE = True,
@@ -671,4 +672,5 @@ def sanitize_local_data_location():
 	
 
 if __name__ == '__main__':
-	app.start()
+	print sys.argv
+	app.start(argv=[__file__, "worker", "-A", "PMD.tasks", "-l", "DEBUG", "--autoreload"])
