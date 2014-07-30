@@ -193,10 +193,6 @@ def export_data(request, data_series_name, recnums, paginator):
 	# Execute the request
 	async_result = execute_export_data_request.delay(user_request, recnums, paginator)
 	
-	# Save the task id into the request to allow easy cancel
-	user_request.task_ids = [async_result.id]
-	user_request.save()
-	
 	# Return message about request
 	return render(request, 'PMD/user_request_message.html', { "request": user_request })
 
@@ -211,10 +207,6 @@ def export_meta_data(request, data_series_name, recnums, paginator):
 	#import pdb; pdb.set_trace()
 	# Execute the request
 	async_result = execute_export_meta_data_request.delay(user_request, recnums, paginator)
-	
-	# Save the task id into the request to allow easy cancel
-	user_request.task_ids = [async_result.id]
-	user_request.save()
 	
 	# Return message about request
 	return render(request, 'PMD/user_request_message.html', { "request": user_request })

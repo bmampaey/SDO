@@ -73,7 +73,7 @@ class DataSeriesSearchForm(forms.Form):
 		cleaned_data = cls.get_cleaned_data(request_data)
 		
 		# Get the paginator
-		paginator = cls.get_paginator(cleaned_data, request_data.get("limit", GlobalConfig.get("search_result_table_row_limit", 12)))
+		paginator = cls.get_paginator(cleaned_data, request_data.get("limit", GlobalConfig.get("search_result_table_size", 12)))
 		
 		# Get the page
 		page_number = request_data.get("page", 1)

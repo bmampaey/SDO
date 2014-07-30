@@ -109,13 +109,20 @@ class GlobalConfig(models.Model):
 	def get_or_fail(cls, name):
 		try:
 			variable = cls.objects.get(name=name)
-		except cls.DoesNotExist:
+		except cls.DoesNotExist, why:
 			# Hack the exception to add the looked up variable name to the message
 			why.args = ("Global configuration variable %s is not set" % name, ) + why.args
 			raise
 		else:
 			return cls.cast(variable.value, variable.python_type)
 
+class UserProfile(models.Model):
+	user = models.OneToOneField(User, primary_key = True, related_name="profile")
+	user_request_retention_time = models.IntegerField(help_text = "The minimum retention time in days for user request. Leave blank to use default.", default=None, blank=True, null=True)
+	user_disk_quota = models.FloatField(help_text = "The maximum disk size in GB for user request. Leave blank to use default.", default=None, blank=True, null=True)
+	
+	class Meta:
+		db_table = "user_profile"
 
 class DataSite(models.Model):
 	name = models.CharField("Data site name.", max_length=12, primary_key = True)
@@ -308,8 +315,8 @@ class LocalDataLocation(PMDDataLocation):
 	
 	@classmethod
 	def create_location(cls, request):
-		cache = GlobalConfig.get_or_fail("data_cache")
-		path = os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment))
+		cache_path = GlobalConfig.get_or_fail("data_cache_path")
+		path = os.path.join(cache_path, request.data_series.name, "%s.%s" % (request.recnum, request.segment))
 		cls.save_path(request, path)
 		return path
 	
@@ -556,7 +563,7 @@ class UserRequest(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.DO_NOTHING, db_column = "data_series_name")
 	recnums = BigIntegerArrayField(help_text = "List of recnums to export")
 	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the request.", blank=False, null=False)
-	status = models.CharField(help_text = "Request status.", max_length=8, blank=False, null=False, default = "NEW")
+	status = models.CharField(help_text = "Request status.", max_length=20, blank=False, null=False, default = "NEW")
 	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now())
 	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
 	#task_id = models.CharField(help_text = "Task id.", max_length=36, blank=True, null=True, default = None)
@@ -570,17 +577,20 @@ class UserRequest(models.Model):
 	
 	def save(self, *args, **kwargs):
 		if self.expiration_date is None:
-			self.expiration_date = self.requested + GlobalConfig.get("default_user_request_retention_time", timedelta(days=60))
+			try:
+				retention_time = timedelta(days=self.user.profile.user_request_retention_time)
+			except UserProfile.DoesNotExist:
+				retention_time = timedelta(days=GlobalConfig.get("default_user_request_retention_time", 60))
+			self.expiration_date = self.requested + retention_time
 		super(UserRequest, self).save(*args, **kwargs)
 	
 	@property
 	def type(self):
 		return self._meta.verbose_name
 	
-	def revoke(self, terminate=True):
+	def revoke(self, terminate=False):
 		if self.task_ids:
-			for task_id in self.task_ids:
-				revoke_task(task_id, terminate=terminate)
+			revoke_task(self.task_ids, terminate=terminate)
 	
 	def __unicode__(self):
 		return u"%s %s" % (self.user, self.requested)
@@ -598,18 +608,21 @@ class ExportDataRequest(UserRequest):
 	
 	@property
 	def export_path(self):
-		cache = GlobalConfig.get_or_fail("export_cache")
-		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
+		cache_path = GlobalConfig.get_or_fail("export_cache_path")
+		path = os.path.join(cache_path, self.user.username, self.data_series.name, self.name)
 		return path
 	
 	@property
 	def ftp_path(self):
-		cache = GlobalConfig.get_or_fail("export_ftp_url")
-		path = os.path.join(cache, self.user.username, self.data_series.name, self.name)
+		ftp_url = GlobalConfig.get_or_fail("export_ftp_url")
+		path = os.path.join(ftp_url, self.user.username, self.data_series.name, self.name)
 		return path
 	
 	def estimated_size(self, human_readable = False):
-		size = self.data_series.record.average_file_size * len(self.recnums)
+		if self.recnums is None:
+			size = 0
+		else:
+			size = self.data_series.record.average_file_size * len(self.recnums)
 		if human_readable:
 			for suffix in ["B", "KB", "MB", "GB", "TB"]: 
 				if size >= 1024:
@@ -639,11 +652,11 @@ class ExportDataRequest(UserRequest):
 def delete_export_data_files(sender, instance, using, **kwargs):
 	# Cancel the background task
 	if instance.task_ids:
-		log.info("user request %s, cancel tasks %", instance, instance.task_ids)
+		log.info("user request %s, cancel tasks %s", str(instance), instance.task_ids)
 		instance.revoke()
 	
 	# Delete the files
-	log.info("user request %s, delete files %", instance, instance.export_path)
+	log.info("user request %s, delete files %s", str(instance), instance.export_path)
 	shutil.rmtree(instance.export_path, ignore_errors = True)
 	
 class ExportMetaDataRequest(UserRequest):
@@ -658,14 +671,14 @@ class ExportMetaDataRequest(UserRequest):
 	
 	@property
 	def export_path(self):
-		cache = GlobalConfig.get_or_fail("export_cache")
-		path = os.path.join(cache, self.user.username, self.name + ".csv")
+		cache_path = GlobalConfig.get_or_fail("export_cache_path")
+		path = os.path.join(cache_path, self.user.username, self.name + ".csv")
 		return path
 	
 	@property
 	def ftp_path(self):
-		cache = GlobalConfig.get_or_fail("export_ftp_url")
-		path = os.path.join(cache, self.user.username, self.name + ".csv")
+		ftp_url = GlobalConfig.get_or_fail("export_ftp_url")
+		path = os.path.join(ftp_url, self.user.username, self.name + ".csv")
 		return path
 	
 	# For displaying in tables
@@ -687,12 +700,12 @@ class ExportMetaDataRequest(UserRequest):
 def delete_export_meta_data_files(sender, instance, using, **kwargs):
 	# Cancel the background task
 	if instance.task_ids:
-		log.info("user request %s, cancel tasks %", instance, instance.task_ids)
+		log.info("user request %s, cancel tasks %s", str(instance), instance.task_ids)
 		instance.revoke()
-	print "poueeet"
+	
 	# Delete the files
-	log.info("user request %s, delete files %", instance, instance.export_path)
+	log.info("user request %s, delete files %s", str(instance), instance.export_path)
 	try:
 		os.remove(instance.export_path)
 	except Exception, why:
-			log.error("user request %s, could not delete files %: %s", instance, instance.export_path, str(why))
+			log.error("user request %s, could not delete files %s: %s", instance, instance.export_path, str(why))

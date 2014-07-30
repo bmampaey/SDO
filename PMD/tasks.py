@@ -47,8 +47,9 @@ app.conf.update(
 	EMAIL_HOST = settings.EMAIL_HOST,
 )
 
-from PMD.models import GlobalConfig, DataSite, DataSeries, LocalDataLocation
+from PMD.models import GlobalConfig, UserProfile, DataSite, DataSeries, LocalDataLocation
 from PMD.models import DataDownloadRequest, DataLocationRequest, DataDeleteRequest, MetaDataUpdateRequest
+from PMD.models import ExportDataRequest
 from PMD.celery_tasks.SftpDownloader import SftpDownloader
 from PMD.celery_tasks.HttpDownloader import HttpDownloader
 from PMD.celery_tasks.DrmsDataLocator import DrmsDataLocator
@@ -458,8 +459,8 @@ def create_SDO_synoptic_tree(config):
 @app.task
 def get_preview(request):
 	# Check if the previews already exists 
-	cache = GlobalConfig.get_or_fail("preview_cache")
-	image_path = os.path.splitext(os.path.join(cache, request.data_series.name, "%s.%s" % (request.recnum, request.segment)))[0] + ".png"
+	cache_path = GlobalConfig.get_or_fail("preview_cache_path")
+	image_path = os.path.splitext(os.path.join(cache_path, request.data_series.name, "%s.%s" % (request.recnum, request.segment)))[0] + ".png"
 	if os.path.exists(image_path):
 		return image_path
 	
@@ -484,7 +485,18 @@ def execute_export_data_request(self, request, recnums, paginator):
 	update_request_status(request, "STARTED")
 	
 	# To avoid user filling up our system, we check that the request is reasonable
-	max_export_data_request_size =  GlobalConfig.get("max_export_data_request_size", 100 * 1024 * 1024 * 1024)
+	try:
+		user_disk_quota = request.user.profile.user_disk_quota
+	except UserProfile.DoesNotExist:
+		user_disk_quota = GlobalConfig.get("default_user_disk_quota", 1)
+	
+	# User disk quota is in GB
+	user_disk_quota *= 1024*1024*1024
+	used_quota = sum([r.estimated_size() for r in ExportDataRequest.objects.filter(user = request.user)])
+	remaining_quota = user_disk_quota - used_quota
+	
+	if remaining_quota <= 0:
+		raise Exception("User %s has no disk quota left for request %s" % (request.user, request))
 	
 	# Add the recnums from the paginator to the request (excluding recnums)
 	if paginator is not None:
@@ -497,14 +509,14 @@ def execute_export_data_request(self, request, recnums, paginator):
 				for obj in page.object_list:
 					if obj.recnum not in recnums:
 						request.recnums.append(obj.recnum)
-				if request.estimated_size() > max_export_data_request_size:
-					update_request_status(request, "TOO BIG")
+				if request.estimated_size() > remaining_quota:
+					update_request_status(request, "NO DISK LEFT")
 					raise Exception("User request %s %s is larger than maximum allowed size" % (request.type, request.id)) 
 	
 	else:
 		request.recnums = recnums
-		if request.estimated_size() > max_export_data_request_size:
-			update_request_status(request, "TOO BIG")
+		if request.estimated_size() > remaining_quota:
+			update_request_status(request, "NO DISK LEFT")
 			raise Exception("User request %s %s is larger than maximum allowed size" % (request.type, request.id)) 
 	
 	log.debug("Found %s records to download", len(request.recnums))
