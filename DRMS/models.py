@@ -10,6 +10,7 @@
 from __future__ import unicode_literals
 
 from django.db import models
+from datetime import datetime
 
 class DRMSDataSeries(models.Model):
 	name = models.CharField("Data series name", help_text = "Meta-data database table of the data series. Must be fully qualified.", max_length=20, primary_key = True)
@@ -49,6 +50,29 @@ class DRMSDataSeries(models.Model):
 		if not hasattr(self, '__fits_keyword_model'):
 			self.__set_models()
 		return self.__fits_keyword_model
+	
+	@property
+	def keywords(self):
+		if not hasattr(self, '__fits_keywords'):
+			self.__keywords = dict()
+			example = self.fits_header_model.objects.all()[0]
+			fits_keywords = dict([(k.keyword, (k.unit, k.comment)) for k in self.fits_keyword_model.objects.all()])
+			
+			for field in self.fits_header_model._meta.fields:
+				keyword = dict()
+				if isinstance(getattr(example, field.attname), basestring):
+					keyword["type"] = "string"
+				else:
+					try:
+						keyword["type"] = getattr(example, field.attname).__class__.__name__
+					except:
+						type(getattr(example, field.attname)).__name__
+				
+				keyword["name"] = field.db_column
+				keyword["unit"], keyword["comment"] = fits_keywords[keyword["name"]]
+				self.__keywords[field.attname] = keyword
+		
+		return self.__keywords
 
 class FitsHeader(models.Model):
 	
@@ -287,8 +311,6 @@ class HmiIc45sFitsHeader(FitsHeader):
 	content = models.TextField(db_column='CONTENT', blank=True)
 	quality = models.IntegerField(db_column='QUALITY', blank=True, null=True)
 	quallev1 = models.IntegerField(db_column='QUALLEV1', blank=True, null=True)
-	history = models.TextField(db_column='HISTORY', blank=True)
-	comment = models.TextField(db_column='COMMENT', blank=True)
 	bld_vers = models.TextField(db_column='BLD_VERS', blank=True)
 	hcamid = models.IntegerField(db_column='HCAMID', blank=True, null=True)
 	source = models.TextField(db_column='SOURCE', blank=True)
@@ -391,8 +413,6 @@ class HmiM45sFitsHeader(FitsHeader):
 	content = models.TextField(db_column='CONTENT', blank=True)
 	quality = models.IntegerField(db_column='QUALITY', blank=True, null=True)
 	quallev1 = models.IntegerField(db_column='QUALLEV1', blank=True, null=True)
-	history = models.TextField(db_column='HISTORY', blank=True)
-	comment = models.TextField(db_column='COMMENT', blank=True)
 	bld_vers = models.TextField(db_column='BLD_VERS', blank=True)
 	hcamid = models.IntegerField(db_column='HCAMID', blank=True, null=True)
 	source = models.TextField(db_column='SOURCE', blank=True)

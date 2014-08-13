@@ -52,8 +52,12 @@ INSTALLED_APPS = (
     'accounts',
     'tastypie',
     'PMD',
-    'DRMS'
+    'DRMS',
+    'djcelery'
 )
+
+import djcelery
+djcelery.setup_loader()
 
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',

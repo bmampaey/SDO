@@ -18,7 +18,7 @@ from djorm_pgarray.fields import BigIntegerArrayField, TextArrayField, ArrayFiel
 
 from celery.task.control import revoke as revoke_task
 
-from DRMS.models import DRMSDataSeries
+from DRMS.models import DRMSDataSeries, AiaLev1FitsHeader, HmiIc45sFitsHeader, HmiM45sFitsHeader
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
 
 
@@ -59,7 +59,7 @@ class GlobalConfig(models.Model):
 		if python_type == "string":
 			return value
 		elif python_type == "bool":
-			return bool(value)
+			return value.lower() in ['true', 't', 'y', 'yes', '1']
 		elif python_type == "int":
 			return int(value)
 		elif python_type == "float":
@@ -426,6 +426,7 @@ class AiaLev1Record(PmdRecord):
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
 	fsn = models.IntegerField(blank=True, null=True)
+	fits_header = models.OneToOneField(AiaLev1FitsHeader, related_name = "latest", to_field="recnum", db_column="recnum", db_constraint=False, on_delete=models.DO_NOTHING)
 	
 	# Global properties
 	hdu = 1
@@ -448,6 +449,7 @@ class HmiIc45SRecord(PmdRecord):
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
 	camera = models.IntegerField(blank=True, null=True)
+	fits_header = models.OneToOneField(HmiIc45sFitsHeader, related_name = "latest", to_field="recnum", db_column="recnum", db_constraint=False, on_delete=models.DO_NOTHING)
 	
 	# Global properties
 	hdu = 1
@@ -469,6 +471,7 @@ class HmiM45SRecord(PmdRecord):
 	quality = models.IntegerField(blank=True, null=True)
 	t_rec_index = models.BigIntegerField(blank=True, null=True)
 	camera = models.IntegerField(blank=True, null=True)
+	fits_header = models.OneToOneField(HmiM45sFitsHeader, related_name = "latest", to_field="recnum", db_column="recnum", db_constraint=False, on_delete=models.DO_NOTHING)
 	
 	# Global properties
 	hdu = 1

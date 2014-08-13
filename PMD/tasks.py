@@ -16,6 +16,8 @@ from celery import Celery, group, chord
 from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 
+import djcelery.schedulers
+
 import csv
 
 log = get_task_logger("test")
@@ -33,12 +35,13 @@ celery_beat_schedule = {
 # Optional configuration, see the application user guide.
 
 app.conf.update(
-	CELERY_ACCEPT_CONTENT = ['json'],
+	#CELERY_ACCEPT_CONTENT = ['json'],
 	CELERY_TASK_RESULT_EXPIRES=3600,
 	CELERY_TRACK_STARTED = True,
 	CELERY_ACKS_LATE = True,
 	CELERY_DISABLE_RATE_LIMITS = True, # To be removed if we set a rate limit on some tasks
 	CELERY_TIMEZONE = 'Europe/Brussels',
+	CELERYBEAT_SCHEDULER = djcelery.schedulers.DatabaseScheduler,
 	CELERYBEAT_SCHEDULE = celery_beat_schedule,
 	# Send a mail each time a task fail
 	CELERY_SEND_TASK_ERROR_EMAILS = True,
@@ -57,6 +60,7 @@ from PMD.celery_tasks.DrmsDataLocator import DrmsDataLocator
 from PMD.celery_tasks.Exceptions import FileNotFound
 from PMD.routines.update_fits_header import update_fits_header
 from PMD.routines.create_png import create_png
+from PMD.routines.create_record_sets import create_record_sets
 
 # TODO add soft limit to requests http://celery.readthedocs.org/en/latest/userguide/workers.html#time-limits
 # http://celery.readthedocs.org/en/latest/userguide/tasks.html#retrying
@@ -111,12 +115,15 @@ def get_data(request):
 	# Try to get the file path for the local data site, otherwise download the data
 	try:
 		file_path = get_file_path(request, local_data_site = True)
+		log.debug("File for request %s already in cache", request)
 	except Exception:
+		log.debug("Downloading file for request %s", request)
 		download_data(request)
 		file_path = get_file_path(request, local_data_site = True)
 	else:
 		# Check that the file really exists
 		if not check_file_exists(file_path):
+			log.debug("File for request %s in DB but not on disk, missing %s. Downloading.", request, file_path)
 			download_data(request)
 			file_path = get_file_path(request, local_data_site = True)
 		
@@ -415,12 +422,12 @@ def create_SDO_synoptic_tree(config):
 	{prefix}_soft_link: Set to true if you want soft link instead of hard link
 	"""
 	log.debug("create_SDO_synoptic_tree %s", config)
-	
+	import pdb; pdb.set_trace()
 	root_folder = GlobalConfig.get_or_fail(config + "_root_folder")
 	frequency = GlobalConfig.get_or_fail(config + "_frequency")
 	soft_link = GlobalConfig.get(config + "_soft_link", False)
-	start_date = GlobalConfig.get(config + "_start_date", datetime(2010, 02, 11))
-	if start_date  <= datetime(2010, 02, 11):
+	start_date = GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29))
+	if start_date  <= datetime(2010, 03, 29):
 		log.info("Creating the SDO synoptic tree from beggining %s", start_date)
 	
 	data_series_desc = dict()
@@ -437,24 +444,25 @@ def create_SDO_synoptic_tree(config):
 	data_series_desc["hmi.ic_45s"] = hmi_ic_45s.record.objects.filter(quality = 0)
 	
 	# Get the record sets
-	record_sets = create_record_sets(data_series_desc, frequency, start_date, date.today())
+	end_date = min(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), start_date + timedelta(hours=2))
+	record_sets = create_record_sets(data_series_desc, frequency, start_date, end_date)
 	
 	# We remove all the sets at the end that are not full, and set the start_date for the next run as the last not full set
-	dates = record_sets.values()
-	dates.sort()
-	while dates and len(record_sets[dates[-1]]) < len(data_series_desc):
-		start_date = dates.pop()
+	times = record_sets.keys()
+	times.sort()
+	while times and len(record_sets[times[-1]]) < len(data_series_desc):
+		start_date = times.pop()
 	
 	# We get the files and make the links
-	for date in dates:
-		for desc, record in record_sets[date].iteritems():
+	for time in times:
+		for desc, record in record_sets[time].iteritems():
 			request = DataDownloadRequest.create_from_record(record)
-			link_path = os.path.join(root_folder, desc, date.strftime("%Y/%m/%d/%H"), record.filename)
+			link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d/%H"), record.filename)
 			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link))
 	
 	# We save the start date for the next run
-	start_date_config = GlobalConfig(name = config + "_start_date", value = start_date.isoformat(), python_type = "datetime", help_text = "Start date for create_SDO_synoptic_tree %s" % config)
-	start_date_config.save()
+	GlobalConfig.set(config + "_start_date", start_date, help_text = "Start date for create_SDO_synoptic_tree %s" % config)
+
 
 # Django tasks
 @app.task

@@ -8,6 +8,11 @@ from PMD.models import  ExportDataRequest, ExportMetaDataRequest
 
 class GlobalConfigAdmin(admin.ModelAdmin):
 	list_display = ("name", "value", "python_type", "help_text")
+	
+	def get_readonly_fields(self, request, obj=None):
+		if obj:
+			return self.readonly_fields + ("name",)
+		return self.readonly_fields
 
 class UserProfileAdmin(admin.ModelAdmin):
 	list_display = ("user", "user_request_retention_time", "user_disk_quota")
