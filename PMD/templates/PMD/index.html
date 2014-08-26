@@ -47,7 +47,7 @@
 	
 	<!-- User Tab definition --> 
 	<div id="user">
-		<!-- If user is not authenticated evrything is hidden and will be reavealed when logging in -->
+		<!-- If user is not authenticated everything is hidden and will be revealed when logging in -->
 		{% if user.is_authenticated %}
 		<div id="export_data_request_section" class="section">
 		{% else %}
@@ -86,6 +86,7 @@
 		<form id="login_form" action="{% url 'PMD:login' %}" method="post">
 		{% csrf_token %}
 			<div class="section login_section">
+			<!-- For now we only allow email login, when the LDAP auth is put in place we can uncomment this 
 				<div class="section_title">
 					Members of ROB, please use your usual username/password
 				</div>
@@ -94,6 +95,10 @@
 				</div>
 				<div class="section_title">
 					Others, please specify your email address (password is not necessary)
+				</div>
+				-->
+				<div class="section_title">
+					Please specify your email address so that we can notify you when your requests are ready.
 				</div>
 				<div class="section_content">
 					{{ email_login_form.as_p }}
