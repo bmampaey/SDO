@@ -135,12 +135,12 @@ class DataSite(models.Model):
 	data_download_password = models.CharField(help_text = "Password for the data server connection.", max_length=255, default=None, blank=True, null=True)
 	data_download_port = models.IntegerField(help_text = "Port for the data server connection.", default=None, blank=True, null=True)
 	data_download_timeout = models.IntegerField(help_text = "Timeout for the data download.", default=None, blank=True, null=True)
+	data_download_max_attempts = models.PositiveIntegerField(help_text = "Maximal number of attempt to download data from the server before giving up.", default=3, blank=True, null=False)
 	data_location_table = models.CharField(help_text = "Name of the data location table/model for this data site.", max_length=20, blank=False, null=False)
 	data_location_request_url = models.URLField(help_text = "URL to request data location on data server.", max_length=200)
 	data_location_request_timeout = models.PositiveIntegerField(help_text = "Timeout in seconds before a data location request to the server is considered failed.", default=120, blank=True, null=False)
 	data_location_request_max_attempts = models.PositiveIntegerField(help_text = "Maximal number of attempt to request data location to the server before giving up.", default=3, blank=True, null=False)
 	data_location_request_max_size = models.PositiveIntegerField(help_text = "Maximal number of data location to request at the same time. A high value mean the request will be less frequent.", default=100, blank=True, null=False)
-	data_location_request_max_delay = models.PositiveIntegerField(help_text = "Maximal time to wait for queries before sending to the server. A high value mean the request will be less frequent.", default=100, blank=True, null=False)
 	data_location_proactive = models.BooleanField(help_text = "Data location for this data site will be pro-actively queried.", default = False)
 	
 	class Meta:
@@ -349,11 +349,11 @@ class LocalDataLocation(PMDDataLocation):
 # Register a django signal so that when a LocalDataLocation is deleted, the corresponding files are also deleted
 @receiver(signals.post_delete, sender=LocalDataLocation)
 def delete_local_data_location_files(sender,  instance, using, **kwargs):
-	log.info("local_data_location %s, delete files %", instance, instance.path)
+	log.info("local_data_location %s, delete files %s", instance, instance.path)
 	try:
 		os.remove(instance.path)
 	except Exception, why:
-		log.error("local_data_location %s, could not delete files %: %s", instance, instance.path, str(why))
+		log.error("local_data_location %s, could not delete files %s: %s", instance, instance.path, str(why))
 
 class DrmsDataLocation(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.PROTECT, db_column = "data_series_name")
@@ -551,7 +551,7 @@ class DataDeleteRequest(DataRequest):
 		verbose_name = "Data delete request"
 
 class MetaDataUpdateRequest(DataRequest):
-	new_recnum = models.BigIntegerField(help_text = "JSOC Record number", blank=True, null=True, default=0)
+	old_recnum = models.BigIntegerField(help_text = "JSOC Record number", blank=True, null=True, default=0)
 	
 	class Meta(DataRequest.Meta):
 		db_table = "meta_data_update_request"

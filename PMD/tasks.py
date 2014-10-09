@@ -17,26 +17,18 @@ from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 
 import djcelery.schedulers
-
 import csv
 
+from PMD.periodic_tasks_schedule import celery_beat_schedule
+
 log = get_task_logger("test")
-app = Celery('app', broker='amqp://', backend='amqp://')
+app = Celery('app', broker='amqp://', backend='cache+memcached://127.0.0.1:11211/')
 
-
-celery_beat_schedule = {
-	'execute_data_download_requests': {
-		'task': 'PMD.tasks.execute_data_download_requests',
-		'schedule': timedelta(seconds=20),
-		'args': ()
-	},
-}
 
 # Optional configuration, see the application user guide.
-
 app.conf.update(
 	#CELERY_ACCEPT_CONTENT = ['json'],
-	CELERY_TASK_RESULT_EXPIRES=3600,
+	CELERY_TASK_RESULT_EXPIRES=600,
 	CELERY_TRACK_STARTED = True,
 	CELERY_ACKS_LATE = True,
 	CELERY_DISABLE_RATE_LIMITS = True, # To be removed if we set a rate limit on some tasks
@@ -80,6 +72,7 @@ def download_data(request):
 			raise
 	
 	# Try to download from each data site in order of preference until OK
+	download_ok = False
 	for data_site in get_prefered_datasites(request):
 		request.data_site = data_site
 		try:
@@ -88,29 +81,49 @@ def download_data(request):
 		except Exception, why:
 			log.debug("No data location found for request %s: %s", request, why)
 		else:
-			# We call the specific data site downloader
-			try:
-				data_downloaders[request.data_site.name](request)
-			# If data download fail because of wrong data location forc a locate data
-			except FileNotFound:
-				# If locate data does not find the path (raise exception) just pass the server
+			attempts = max(data_site.data_download_max_attempts, 1)
+			while attempts > 0:
+				attempts -= 1
+				# We call the specific data site downloader
 				try:
-					request.remote_file_path = locate_data(request)
-				except Exception, why:
-					pass
-				else:
+					log.info("Downloading data for request %s from %s", request, request.data_site.name)
 					data_downloaders[request.data_site.name](request)
-			else:
-				# We have the file
-				break
-			
+				# If data download fail because of wrong data location force a locate data
+				except FileNotFound:
+					log.info("Data for request %s not found where it was expected at %s. Forcing a locate data request.", request, request.data_site.name)
+					try:
+						request.remote_file_path = locate_data(request)
+					except Exception, why:
+						# If locate data does not find the path (raise exception) just pass the server
+						attempts = 0
+				except Exception, why:
+					log.error("Error while downloading data for request %s from %s: %s. Attempts lefts: %s", request, request.data_site.name, why, attempts)
+				else:
+					# We have the file
+					download_ok = True
+					attempts = 0
+		
+		if download_ok:
+			break
 	
-	update_file_meta_data(request)
+	if not download_ok:
+		raise Exception("Could not download data for request %s" % str(request))
+	else:
+		attempts = max(data_site.data_download_max_attempts, 1)
+		while attempts > 0:
+			attempts -= 1
+			try:
+				update_file_meta_data(request)
+			except Exception, why:
+				log.error("Error while updating meta-data for request %s : %s. Attempts lefts: %s", request, why, attempts)
+			else:
+				break
+		if attempts == 0:
+			raise Exception("Could not update meta-data for request %s" % str(request))
 
 # Read Data
 @app.task
 def get_data(request):
-	
 	log.debug("get_data %s", request)
 	# Try to get the file path for the local data site, otherwise download the data
 	try:
@@ -147,7 +160,7 @@ def update_file_meta_data(request):
 	header_comments = request.data_series.get_header_comments()
 	
 	# Update the fits header
-	update_fits_header(file_path, header_values, header_comments, header_units, request.data_series.hdu, log)
+	update_fits_header(file_path, header_values, header_comments, header_units, hdu = request.data_series.hdu, log = log)
 
 # Delete Data - Execute a DataDeleteRequest
 @app.task
@@ -172,14 +185,24 @@ def get_meta_data(request):
 # Create Data Location - Execute a DataLocationRequest
 @app.task
 def locate_data(request):
+#	import pdb; pdb.set_trace()
 	log.debug("locate_data %s", request)
-	# We call the specific data site locator
-	data_locators[request.data_site.name](request)
+	attempts = max(request.data_site.data_location_request_max_attempts, 1)
+	while attempts > 0:
+		attempts -= 1
+		# We call the specific data site locator
+		try:
+			data_locators[request.data_site.name](request)
+		except Exception, why:
+			log.error("Error while locating data for request %s from %s: %s. Attempts lefts: %s", request, request.data_site.name, why, attempts)
+			if attempts == 0:
+				raise
+		else:
+			# We save the data location
+			request.data_site.data_location.save_path(request, request.path)
+			attempts = 0
 	
-	# We save the data location
-	request.data_site.data_location.save_path(request, request.path)
-	
-	return data_site.data_location.get_file_path(request)
+	return request.data_site.data_location.get_file_path(request)
 
 
 # Read Data Location
@@ -323,7 +346,7 @@ def execute_data_download_requests():
 			# If the request is running for too long there could be a problem
 			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
 				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
+				app.mail_admins("Request timeout", "The data_download request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -345,7 +368,7 @@ def execute_data_location_requests():
 			# If the request is running for too long there could be a problem
 			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
 				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
+				app.mail_admins("Request timeout", "The data_location request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -367,7 +390,7 @@ def execute_data_delete_requests():
 			# If the request is running for too long there could be a problem
 			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
 				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
+				app.mail_admins("Request timeout", "The data_delete request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -386,12 +409,37 @@ def execute_meta_data_update_requests():
 		for request in MetaDataUpdateRequest.objects.select_for_update(nowait=True).all():
 			if request.status == "NEW":
 				update_request_status(request, "RUNNING")
-				update_file_meta_data(request).apply_async((request, ), link=update_request_status.si(request, "DONE"))
+				# If the recnum is the same we skip
+				if request.old_recnum != request.recnum:
+					# It is possible the file is not stored locally
+					try:
+						current_data_location = LocalDataLocation.objects.get(recnum=request.old_recnum)
+					except LocalDataLocation.DoesNotExist:
+						log.debug("Trying to update meta-data for recnum %s but no data location found", request.old_recnum)
+						update_request_status(request, "DONE")
+					else:
+						# If the file is not really on disk, we cleanup
+						if not check_file_exists(current_data_location.path):
+							log.info("Cleaning up LocalDataLocation, missing file for %s", data_location)
+							current_data_location.delete()
+							update_request_status(request, "DONE")
+						else:
+							# Because meta-data is written in theile, we need to make a copy of the file to break hard links and give it a new name
+							new_local_file_path = LocalDataLocation.create_location(request)
+							try:
+								shutil.copyfile(current_data_location.path, new_local_file_path)
+							except IOError, why:
+								log.error("Could not copy file %s to %s: %s", current_data_location.path, new_local_file_path, why)
+								app.mail_admins("Meta-data update request error", "Request %s\nCould not copy file %s to %s: %s" % (request,current_data_location.path, new_local_file_path, str(why)))
+								update_request_status(request, "ERROR")
+							else:
+								current_data_location.delete()
+								update_file_meta_data(request).apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
 			# If the request is running for too long there could be a problem
 			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
 				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The following request %s has been running since %s and passed it's timeout %s", request, request.updated, request_timeout)
+				app.mail_admins("Request timeout", "The meta_data_update request %s has been running since %s and passed it's timeout %s", request.id, request.updated, request_timeout)
 			
 			elif request.status == "DONE":
 				request.delete()
@@ -415,21 +463,23 @@ def create_link(file_path, link_path, soft = False):
 
 
 @app.task
-def create_SDO_synoptic_tree(config):
+def create_SDO_synoptic_tree(config, start_date = None, end_date=None):
 	""" Creates a synoptic directory tree of SDO data, takes as argument a prefix for the following Global Configuration variables:
 	{prefix}_root_folder: The folder where the tree will be created
 	{prefix}_frequency: The frequency of the synoptic dataset (must be of type timedelta)
 	{prefix}_soft_link: Set to true if you want soft link instead of hard link
 	"""
 	log.debug("create_SDO_synoptic_tree %s", config)
-	import pdb; pdb.set_trace()
+	#import pdb; pdb.set_trace()
 	root_folder = GlobalConfig.get_or_fail(config + "_root_folder")
 	frequency = GlobalConfig.get_or_fail(config + "_frequency")
 	soft_link = GlobalConfig.get(config + "_soft_link", False)
-	start_date = GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29))
-	if start_date  <= datetime(2010, 03, 29):
-		log.info("Creating the SDO synoptic tree from beggining %s", start_date)
 	
+	if end_date is None:
+		end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+		#end_date = min(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), start_date + timedelta(hours=2))
+	
+	# Create the dataseries descriptions
 	data_series_desc = dict()
 	
 	# For aia.lev1 it is 1 per wavelength
@@ -443,25 +493,32 @@ def create_SDO_synoptic_tree(config):
 	hmi_ic_45s = DataSeries.objects.get(drms_series__name="hmi.ic_45s")
 	data_series_desc["hmi.ic_45s"] = hmi_ic_45s.record.objects.filter(quality = 0)
 	
-	# Get the record sets
-	end_date = min(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), start_date + timedelta(hours=2))
-	record_sets = create_record_sets(data_series_desc, frequency, start_date, end_date)
+	# To avoid creating huge record_sets, we request max 24 at a time
+	start_slot = GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29)) if start_date is None else start_date
+	end_slot = start_slot + 24 * frequency
 	
-	# We remove all the sets at the end that are not full, and set the start_date for the next run as the last not full set
-	times = record_sets.keys()
-	times.sort()
-	while times and len(record_sets[times[-1]]) < len(data_series_desc):
-		start_date = times.pop()
-	
-	# We get the files and make the links
-	for time in times:
-		for desc, record in record_sets[time].iteritems():
-			request = DataDownloadRequest.create_from_record(record)
-			link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d/%H"), record.filename)
-			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link))
-	
-	# We save the start date for the next run
-	GlobalConfig.set(config + "_start_date", start_date, help_text = "Start date for create_SDO_synoptic_tree %s" % config)
+	while start_slot <= end_date:
+		# Get the record sets
+		log.debug("Getting records from %s to %s", start_slot, min(end_slot, end_date))
+		record_sets = create_record_sets(data_series_desc, frequency, start_slot, min(end_slot, end_date))
+		start_slot = end_slot
+		end_slot = start_slot + 24 * frequency
+		
+		# We get the files and make the links
+		for time in record_sets.keys():
+			for desc, record in record_sets[time].iteritems():
+				request = DataDownloadRequest.create_from_record(record)
+				link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d/%H"), record.filename)
+				get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link))
+		
+		# We save the start date for the next run if it was not called manually
+		if start_date is None and record_sets:
+			# Set the start_date for the next run as the last not full set
+			times = record_sets.keys()
+			times.sort()
+			while times and len(record_sets[times[-1]]) < len(data_series_desc):
+				start_date = times.pop()
+			GlobalConfig.set(config + "_start_date", start_date, help_text = "Start date for create_SDO_synoptic_tree %s" % config)
 
 
 # Django tasks
@@ -658,7 +715,14 @@ def execute_export_meta_data_request(self, request, recnums, paginator):
 @app.task
 def sanitize_local_data_location():
 	log.debug("sanitize_local_data_location")
-	data_location_ids = LocalDataLocation.objects.values("id")
+	# import pdb; pdb.set_trace()
+	# We check that the data_cache_path is not empty
+	# otherwise the nfs could be not mounted and it would result in all files being deleted
+	cache_path = GlobalConfig.get_or_fail("data_cache_path")
+	if not os.path.exists(cache_path) or not os.listdir(cache_path):
+		raise Exception("Cancelling sanitize_local_data_location, suspecting nfs storage not mounted: %s is empty" % cache_path)
+	
+	data_location_ids = [data_location["id"] for data_location in LocalDataLocation.objects.values("id")]
 	# Check for each local data location registered if that the files exists
 	# Rows are locked one by one to minimize service interruption
 	for data_location_id in data_location_ids:

@@ -33,7 +33,7 @@ except ImportError:
 	from secret_key import *
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 TEMPLATE_DEBUG = False
 
@@ -98,7 +98,7 @@ DEFAULT_FROM_EMAIL = "sdoadmin@oma.be"
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Brussels'
 
 USE_I18N = True
 

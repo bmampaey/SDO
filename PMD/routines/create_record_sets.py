@@ -7,7 +7,7 @@ def compare(record_set1, record_set2, compactness_flexibility = timedelta(second
 	# We check the set that is the most complete
 	score = len(record_set1) - len(record_set2)
 	if score != 0:
-		logging.debug("Score from missing records : " + str(score) + ", set1 has " + str(len(record_set1)) + " set2 has " + str(len(record_set2)))
+		logging.log(1, "Score from missing records : " + str(score) + ", set1 has " + str(len(record_set1)) + " set2 has " + str(len(record_set2)))
 		return score
 	
 	# If they are similarly complete we check the one that has the best record quality
@@ -16,7 +16,7 @@ def compare(record_set1, record_set2, compactness_flexibility = timedelta(second
 		score += cmp(record_set1[channel], record_set2[channel])
 	
 	if score != 0:
-		logging.debug("Score from quality difference: " + str(score))
+		logging.log(1, "Score from quality difference: " + str(score))
 		return score
 	
 	# If they are similar in quality we check the one that is the most compact (we allow for 10 seconds of flexibility)
@@ -27,7 +27,7 @@ def compare(record_set1, record_set2, compactness_flexibility = timedelta(second
 	if abs(delta_time_1 - delta_time_2) > compactness_flexibility:
 		score = delta_time_2.total_seconds() - delta_time_1.total_seconds()
 	
-	logging.debug("Score from compactness difference: " + str(score) + ", set1 has " + str(delta_time_1) + " set2 has " + str(delta_time_2))
+	logging.log(1, "Score from compactness difference: " + str(score) + ", set1 has " + str(delta_time_1) + " set2 has " + str(delta_time_2))
 	return score
 
 
