@@ -136,7 +136,7 @@ def search_result_action(request, action_type, data_series_name):
 		return HttpResponseForbidden("You must first login to export data")
 	if not request.user.is_active:
 		return HttpResponseForbidden("Your account has been disabled, please contact sdoadmins@oma.be")
-	
+	#import pdb; pdb.set_trace()
 	# Get the data series search form
 	data_series_search_forms = DataSeriesSearchForm.sub_forms()
 	if data_series_name in data_series_search_forms:

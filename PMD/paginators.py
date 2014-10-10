@@ -96,18 +96,25 @@ class CadencePaginator(Paginator):
 		slot_start = self.start_date + (number - 1) * int(self.per_page / self.per_slot) * self.cadence
 		
 		# Make the list of objects for the page
-		objects = list()
-		
+		page_objects = list()
+		#import pdb; pdb.set_trace()
 		# Avoid orphans
 		if (number * self.per_page) + self.orphans >= self.count:
 			while slot_start <= self.end_date:
 				slot_end = slot_start + self.cadence
-				objects.extend([object_list.filter(date_obs__range=(slot_start, slot_end)).order_by("date_obs")[0] for object_list in self.object_lists])
+				# For each object list, add the first one in the slot (if any)
+				for object_list in self.object_lists:
+					obj = object_list.order_by("date_obs").filter(date_obs__range=(slot_start, slot_end)).first()
+					if obj:
+						page_objects.append(obj)
 				slot_start = slot_end
 		else:
 			page_end = slot_start + int(self.per_page / self.per_slot) * self.cadence
 			while slot_start < page_end:
 				slot_end = slot_start + self.cadence
-				objects.extend([object_list.filter(date_obs__range=(slot_start, slot_end)).order_by("date_obs")[0] for object_list in self.object_lists])
+				for object_list in self.object_lists:
+					obj = object_list.order_by("date_obs").filter(date_obs__range=(slot_start, slot_end)).first()
+					if obj:
+						page_objects.append(obj)
 				slot_start = slot_end
-		return self._get_page(objects, number, self)
+		return self._get_page(page_objects, number, self)

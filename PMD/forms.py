@@ -9,7 +9,7 @@ from django.http import QueryDict
 
 from PMD.paginators import EstimatedCountPaginator, CadencePaginator
 from PMD.models import DataSeries, GlobalConfig
-from PMD.cadence_field import CadenceField
+from PMD.form_fields import CadenceField, CommaSeparatedIntegerField
 
 AIA_WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335, 1600, 1700, 4500]
 
@@ -272,3 +272,96 @@ class HmiIc45SSearchForm(DataSeriesSearchForm):
 			rows.append({'recnum': record.recnum, 'title': record_title, 'fields': [record.date_obs, record.wavelnth, record.quality]})
 		
 		return headers, rows
+
+
+
+class HmiMharp720SSearchForm(DataSeriesSearchForm):
+	record_table = "hmi_mharp_720s"
+	tab_name = "HMI Magnetogram AR Patch"
+	minimal_cadence = 720
+
+	best_quality = forms.BooleanField(required=False, initial = False, help_text="Search results will only display data for which the quality keyword is 0")
+	inclusive_time_range = forms.BooleanField(required=False, initial = False, help_text="Search results will show all records for which an AR patch exists in the time range")
+	lat_min = forms.FloatField(required=False, label = "Min. latitude", max_value = 90, min_value = -90, help_text="The minimal latitude in degrees")
+	lat_max = forms.FloatField(required=False, label = "Max. latitude", max_value = 90, min_value = -90, help_text="The maximal latitude in degrees")
+	lon_min = forms.FloatField(required=False, label = "Min. longitude", max_value = 90, min_value = -90, help_text="The minimal longitude in degrees")
+	lon_max = forms.FloatField(required=False, label = "Max. longitude", max_value = 90, min_value = -90, help_text="The maximal longitude in degrees")
+	nacr_min = forms.IntegerField(required=False, label = "Min. # active pixels", min_value = 0, help_text="The minimal number or active pixels")
+	size_acr_min = forms.FloatField(required=False, label = "Min. proj. area", min_value = 0, help_text="The minimal projected area of active pixels on image in micro-hemisphere")
+	area_acr_min = forms.FloatField(required=False, label = "Min. de-proj area", min_value = 0, help_text="The minimal de-projected area of active pixels on sphere in micro-hemisphere")
+	mtot_min = forms.FloatField(required=False, label = u"Min. Σ LoS flux", min_value = 0, help_text="The minimal sum of absolute LoS flux within the identified region")
+	noaa_ars = CommaSeparatedIntegerField(required=False, dedup=True, max_length=100, help_text="List of NOAA AR number (separated by commas)")
+	
+	@classmethod
+	def get_query_set(cls, cleaned_data):
+		""" Creates a QuerySet for the data series with record table corresponding to the form record_table"""
+		
+		query_set = DataSeries.objects.get(record_table = cls.record_table).record.objects.filter()
+		
+		if cleaned_data.get('best_quality', False):
+			query_set = query_set.filter(quality=0)
+		
+		if cleaned_data.get('start_date', False):
+			query_set = query_set.filter(date_obs__gte = cleaned_data['start_date'])
+		
+		if cleaned_data.get('end_date', False):
+			query_set = query_set.filter(date_obs__lt = cleaned_data['end_date'])
+		
+		if cleaned_data.get('lat_min', None) is not None:
+			query_set = query_set.filter(lat_min__gte=cleaned_data.get('lat_min'))
+		
+		if cleaned_data.get('lat_max', None) is not None:
+			query_set = query_set.filter(lat_max__lte=cleaned_data.get('lat_max'))
+		
+		if cleaned_data.get('lon_min', None) is not None:
+			query_set = query_set.filter(lon_min__gte=cleaned_data.get('lon_min'))
+		
+		if cleaned_data.get('lon_max', None) is not None:
+			query_set = query_set.filter(lon_max__lte=cleaned_data.get('lon_max'))
+		
+		if cleaned_data.get('nacr_min', None) is not None:
+			query_set = query_set.filter(nacr__gte=cleaned_data.get('nacr_min'))
+		
+		if cleaned_data.get('size_acr_min', None) is not None:
+			query_set = query_set.filter(size_acr__gte=cleaned_data.get('size_acr_min'))
+		
+		if cleaned_data.get('area_acr_min', None) is not None:
+			query_set = query_set.filter(area_acr__gte=cleaned_data.get('area_acr_min'))
+		
+		if cleaned_data.get('mtot_min', None) is not None:
+			query_set = query_set.filter(mtot__gte=cleaned_data.get('mtot_min'))
+		
+		if cleaned_data.get('noaa_ars', False):
+			query_set = query_set.extra(where=["noaa_ars && %s"], params=[cleaned_data.get('noaa_ars')]) 
+		
+		return query_set
+	
+	
+	@classmethod
+	def get_cadence_query_sets(cls, cleaned_data):
+		""" Creates a QuerySet for the data series with record table corresponding to the form record_table"""
+		
+		query_set = cls.get_query_set(cleaned_data)
+		
+		# We search all harpnum in the queryset
+		# See http://stackoverflow.com/questions/2466496/select-distinct-values-from-a-table-field
+		harpnums = query_set.order_by().values_list('harpnum', flat=True).distinct()
+		
+		query_sets = list()
+		# For hmi harp series it is 1 query_set per harpnum
+		for harpnum in harpnums:
+			query_sets.append(query_set.filter(harpnum = harpnum))
+		
+		return query_sets
+	
+	
+	@classmethod
+	def get_headers_rows(cls, records):
+		headers = ["Date", "Harpnum", "Quality", "Area", u"Σ LoS flux", "NOAA AR#"]
+		rows = list()
+		for record in records:
+			record_title = u"%s %d %s" % (cls.tab_name, record.harpnum, record.date_obs.strftime("%Y-%m-%d %H:%M:%S"))
+			rows.append({'recnum': record.recnum, 'title': record_title, 'fields': [record.date_obs, record.harpnum, record.quality, round(record.area_acr, 2), round(record.mtot, 2), record.noaa_ars]})
+		
+		return headers, rows
+

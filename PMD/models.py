@@ -14,11 +14,11 @@ from django.dispatch import receiver
 
 # djorm-pgarray allow to use postgres arrays
 # To install: "sudo pip install djorm-pgarray"
-from djorm_pgarray.fields import BigIntegerArrayField, TextArrayField, ArrayField
+from djorm_pgarray.fields import BigIntegerArrayField, TextArrayField, ArrayField, IntegerArrayField
 
 from celery.task.control import revoke as revoke_task
 
-from DRMS.models import DRMSDataSeries, AiaLev1FitsHeader, HmiIc45sFitsHeader, HmiM45sFitsHeader
+from DRMS.models import DRMSDataSeries, AiaLev1FitsHeader, HmiIc45sFitsHeader, HmiM45sFitsHeader, HmiMharp720SFitsHeader, HmiSharp720SFitsHeader
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
 
 
@@ -487,6 +487,40 @@ class HmiM45SRecord(PmdRecord):
 	@property
 	def filename(self):
 		return "HMI.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.segment)
+
+class HmiMharp720SRecord(PmdRecord):
+	quality = models.IntegerField(blank=True, null=True)
+	t_rec_index = models.BigIntegerField(blank=True, null=True)
+	harpnum = models.IntegerField(blank=True, null=False)
+	fits_header = models.OneToOneField(HmiMharp720SFitsHeader, related_name = "latest", to_field="recnum", db_column="recnum", db_constraint=False, on_delete=models.DO_NOTHING)
+	
+	lat_min = models.FloatField(blank=True, null=True)
+	lon_min = models.FloatField(blank=True, null=True)
+	lat_max = models.FloatField(blank=True, null=True)
+	lon_max = models.FloatField(blank=True, null=True)
+	t_frst1 = models.DateTimeField(blank=True, null=True)
+	t_last1 = models.DateTimeField(blank=True, null=True)
+	nacr = models.IntegerField(blank=True, null=True)
+	size_acr = models.FloatField(blank=True, null=True)
+	area_acr = models.FloatField(blank=True, null=True)
+	mtot = models.FloatField(blank=True, null=True)
+	noaa_ars = IntegerArrayField(blank=True, null=True)
+
+	# Global properties
+	hdu = 0
+	average_file_size = 20 * 1024
+	
+	class Meta:
+		managed = False
+		db_table = 'hmi_mharp_720s'
+		unique_together = (("t_rec_index", "harpnum"),)
+		ordering = ["t_rec_index"]
+		verbose_name = "HMI Mharp720s"
+		
+	@property
+	def filename(self):
+		return "HMI.%s.%s.%s" % (self.date_obs.strftime("%Y%m%d_%H%M%S"), self.harpnum, self.segment)
+
 
 ########################
 # Data request models  #

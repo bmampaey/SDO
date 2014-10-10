@@ -22,7 +22,7 @@ import csv
 from PMD.periodic_tasks_schedule import celery_beat_schedule
 
 log = get_task_logger("test")
-app = Celery('app', broker='amqp://', backend='cache+memcached://127.0.0.1:11211/')
+app = Celery('app', broker='amqp://admin:admin@localhost:5672//', backend='cache+memcached://127.0.0.1:11211/')
 
 
 # Optional configuration, see the application user guide.
@@ -722,7 +722,7 @@ def sanitize_local_data_location():
 	if not os.path.exists(cache_path) or not os.listdir(cache_path):
 		raise Exception("Cancelling sanitize_local_data_location, suspecting nfs storage not mounted: %s is empty" % cache_path)
 	
-	data_location_ids = [data_location["id"] for data_location in LocalDataLocation.objects.values("id")]
+	data_location_ids = LocalDataLocation.objects.values_list("id", flat=True)
 	# Check for each local data location registered if that the files exists
 	# Rows are locked one by one to minimize service interruption
 	for data_location_id in data_location_ids:
