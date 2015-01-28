@@ -8,7 +8,7 @@ sys.path.append('/home/benjmam/SDO')
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, OperationalError
 from django.core import mail
 from django.template.loader import render_to_string
 
@@ -336,20 +336,24 @@ def execute_data_download_requests():
 	request_timeout = GlobalConfig.get("data_download_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
-	# So open a transaction and lock the rows in nowait
-	with transaction.atomic():
-		for request in DataDownloadRequest.objects.select_for_update(nowait=True).all():
-			if request.status == "NEW":
-				update_request_status(request, "RUNNING")
-				get_data.apply_async((request, ), link=update_request_status.si(request, "DONE"))
+	# So try to open a transaction and lock the rows in nowait
+	try:
+		with transaction.atomic():
+			for request in DataDownloadRequest.objects.select_for_update(nowait=True).all():
+				if request.status == "NEW":
+					update_request_status(request, "RUNNING")
+					get_data.apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
-			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
-				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The data_download request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
+				# If the request is running for too long there could be a problem
+				elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+					update_request_status(request, "TIMEOUT")
+					app.mail_admins("Request timeout", "The data_download request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
 			
-			elif request.status == "DONE":
-				request.delete()
+				elif request.status == "DONE":
+					request.delete()
+	except OperationalError, why:
+		log.warning("Could not lock database rows for DataDownloadRequest: %s", why)
+
 
 @app.task
 def execute_data_location_requests():
@@ -358,20 +362,23 @@ def execute_data_location_requests():
 	request_timeout = GlobalConfig.get("data_location_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
-	# So open a transaction and lock the rows in nowait
-	with transaction.atomic():
-		for request in DataLocationRequest.objects.select_for_update(nowait=True).all():
-			if request.status == "NEW":
-				update_request_status(request, "RUNNING")
-				get_data_location.apply_async((request, ), link=update_request_status.si(request, "DONE"))
+	# So try to open a transaction and lock the rows in nowait
+	try:
+		with transaction.atomic():
+			for request in DataLocationRequest.objects.select_for_update(nowait=True).all():
+				if request.status == "NEW":
+					update_request_status(request, "RUNNING")
+					get_data_location.apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
-			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
-				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The data_location request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
+				# If the request is running for too long there could be a problem
+				elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+					update_request_status(request, "TIMEOUT")
+					app.mail_admins("Request timeout", "The data_location request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
 			
-			elif request.status == "DONE":
-				request.delete()
+				elif request.status == "DONE":
+					request.delete()
+	except OperationalError, why:
+		log.warning("Could not lock database rows for DataLocationRequest: %s", why)
 
 @app.task
 def execute_data_delete_requests():
@@ -380,20 +387,24 @@ def execute_data_delete_requests():
 	request_timeout = GlobalConfig.get("data_delete_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
-	# So open a transaction and lock the rows in nowait
-	with transaction.atomic():
-		for request in DataDeleteRequest.objects.select_for_update(nowait=True).all():
-			if request.status == "NEW":
-				update_request_status(request, "RUNNING")
-				delete_data.apply_async((request, ), link=update_request_status.si(request, "DONE"))
+	# So try to open a transaction and lock the rows in nowait
+	try:
+		with transaction.atomic():
+			for request in DataDeleteRequest.objects.select_for_update(nowait=True).all():
+				if request.status == "NEW":
+					update_request_status(request, "RUNNING")
+					delete_data.apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
-			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
-				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The data_delete request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
+				# If the request is running for too long there could be a problem
+				elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+					update_request_status(request, "TIMEOUT")
+					app.mail_admins("Request timeout", "The data_delete request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
 			
-			elif request.status == "DONE":
-				request.delete()
+				elif request.status == "DONE":
+					request.delete()
+	except OperationalError, why:
+		log.warning("Could not lock database rows for DataDeleteRequest: %s", why)
+
 
 # TODO check how to get old recnum vs new recnum
 # The old file should be deleted from datalocation and disk
@@ -404,48 +415,52 @@ def execute_meta_data_update_requests():
 	request_timeout = GlobalConfig.get("meta_data_update_request_timeout", timedelta(days=1))
 	
 	# Only one of these should run at any time
-	# So open a transaction and lock the rows in nowait
-	with transaction.atomic():
-		for request in MetaDataUpdateRequest.objects.select_for_update(nowait=True).all():
-			if request.status == "NEW":
-				update_request_status(request, "RUNNING")
-				# If the recnum is the same we skip
-				if request.old_recnum != request.recnum:
-					# It is possible the file is not stored locally
-					try:
-						current_data_location = LocalDataLocation.objects.get(recnum=request.old_recnum)
-					except LocalDataLocation.DoesNotExist:
-						log.debug("Trying to update meta-data for recnum %s but no data location found", request.old_recnum)
-						update_request_status(request, "DONE")
-					else:
-						# If the file is not really on disk, we cleanup
-						if not check_file_exists(current_data_location.path):
-							log.info("Cleaning up LocalDataLocation, missing file for %s", data_location)
-							current_data_location.delete()
+	# So try to open a transaction and lock the rows in nowait
+	try:
+		with transaction.atomic():
+			for request in MetaDataUpdateRequest.objects.select_for_update(nowait=True).all():
+				if request.status == "NEW":
+					update_request_status(request, "RUNNING")
+					# If the recnum is the same we skip
+					if request.old_recnum != request.recnum:
+						# It is possible the file is not stored locally
+						try:
+							current_data_location = LocalDataLocation.objects.get(recnum=request.old_recnum)
+						except LocalDataLocation.DoesNotExist:
+							log.debug("Trying to update meta-data for recnum %s but no data location found", request.old_recnum)
 							update_request_status(request, "DONE")
 						else:
-							# Because meta-data is written in theile, we need to make a copy of the file to break hard links and give it a new name
-							new_local_file_path = LocalDataLocation.create_location(request)
-							try:
-								shutil.copyfile(current_data_location.path, new_local_file_path)
-							except IOError, why:
-								log.error("Could not copy file %s to %s: %s", current_data_location.path, new_local_file_path, why)
-								app.mail_admins("Meta-data update request error", "Request %s\nCould not copy file %s to %s: %s" % (request,current_data_location.path, new_local_file_path, str(why)))
-								update_request_status(request, "ERROR")
-							else:
+							# If the file is not really on disk, we cleanup
+							if not check_file_exists(current_data_location.path):
+								log.info("Cleaning up LocalDataLocation, missing file for %s", data_location)
 								current_data_location.delete()
-								update_file_meta_data(request).apply_async((request, ), link=update_request_status.si(request, "DONE"))
+								update_request_status(request, "DONE")
+							else:
+								# Because meta-data is written in theile, we need to make a copy of the file to break hard links and give it a new name
+								new_local_file_path = LocalDataLocation.create_location(request)
+								try:
+									shutil.copyfile(current_data_location.path, new_local_file_path)
+								except IOError, why:
+									log.error("Could not copy file %s to %s: %s", current_data_location.path, new_local_file_path, why)
+									app.mail_admins("Meta-data update request error", "Request %s\nCould not copy file %s to %s: %s" % (request,current_data_location.path, new_local_file_path, str(why)))
+									update_request_status(request, "ERROR")
+								else:
+									current_data_location.delete()
+									update_file_meta_data(request).apply_async((request, ), link=update_request_status.si(request, "DONE"))
 			
-			# If the request is running for too long there could be a problem
-			elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
-				update_request_status(request, "TIMEOUT")
-				app.mail_admins("Request timeout", "The meta_data_update request %s has been running since %s and passed it's timeout %s", request.id, request.updated, request_timeout)
+				# If the request is running for too long there could be a problem
+				elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
+					update_request_status(request, "TIMEOUT")
+					app.mail_admins("Request timeout", "The meta_data_update request %s has been running since %s and passed it's timeout %s", request.id, request.updated, request_timeout)
 			
-			elif request.status == "DONE":
-				request.delete()
+				elif request.status == "DONE":
+					request.delete()
+	except OperationalError, why:
+		log.warning("Could not lock database rows for MetaDataUpdateRequest: %s", why)
+
 
 @app.task
-def create_link(file_path, link_path, soft = False):
+def create_link(file_path, link_path, soft = False, force = False):
 	log.debug("create_link %s -> %s", link_path, file_path)
 	
 	# Create the directory tree
@@ -454,6 +469,14 @@ def create_link(file_path, link_path, soft = False):
 	except OSError, why:
 		if why.errno != errno.EEXIST:
 			raise
+	
+	# If forced and the link exists, remove it first
+	if force and os.path.lexists(link_path):
+		try:
+			os.remove(link_path)
+		except OSError, why:
+			if why.errno != errno.ENOENT:
+				raise
 	
 	# Make the link
 	if soft:
@@ -508,8 +531,8 @@ def create_SDO_synoptic_tree(config, start_date = None, end_date=None):
 		for time in record_sets.keys():
 			for desc, record in record_sets[time].iteritems():
 				request = DataDownloadRequest.create_from_record(record)
-				link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d/%H"), record.filename)
-				get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link))
+				link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d"), record.filename)
+				get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link, force=True))
 		
 		# We save the start date for the next run if it was not called manually
 		if start_date is None and record_sets:
@@ -544,7 +567,7 @@ def get_preview(request):
 @app.task(bind=True)
 def execute_export_data_request(self, request, recnums, paginator):
 	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
-	#import pdb; pdb.set_trace()
+	#from celery.contrib import rdb; rdb.set_trace()
 	
 	# Save the task id into the user request to allow easy cancel
 	request.task_ids = [self.request.id]
@@ -566,6 +589,7 @@ def execute_export_data_request(self, request, recnums, paginator):
 	
 	# Add the recnums from the paginator to the request (excluding recnums)
 	if paginator is not None:
+		request.recnums = []
 		for page_number in paginator.page_range:
 			try:
 				page = paginator.page(page_number)
@@ -600,7 +624,7 @@ def execute_export_data_request(self, request, recnums, paginator):
 			data_download_request = DataDownloadRequest.create_from_record(record)
 			data_download_request.expiration_date = request.expiration_date
 			link_path = os.path.join(request.export_path, record.filename)
-			download_and_link_tasks.append(get_data.s(data_download_request) | create_link.s(link_path, soft = False))
+			download_and_link_tasks.append(get_data.s(data_download_request) | create_link.s(link_path, soft = False, force = True))
 	
 	#import pdb; pdb.set_trace()
 	# Execute all the link tasks in parralel, then mark status as done and send email
@@ -726,15 +750,19 @@ def sanitize_local_data_location():
 	# Check for each local data location registered if that the files exists
 	# Rows are locked one by one to minimize service interruption
 	for data_location_id in data_location_ids:
-		with transaction.atomic():
-			try:
-				data_location = LocalDataLocation.objects.select_for_update(nowait=True).get(id=data_location_id)
-			except LocalDataLocation.DoesNotExist:
-				pass
-			else:
-				if not check_file_exists(data_location.path):
-					log.info("Cleaning up LocalDataLocation, missing file for %s", data_location)
-					data_location.delete()
+		try:
+			with transaction.atomic():
+				try:
+					data_location = LocalDataLocation.objects.select_for_update(nowait=True).get(id=data_location_id)
+				except LocalDataLocation.DoesNotExist:
+					pass
+				else:
+					if not check_file_exists(data_location.path):
+						log.info("Cleaning up LocalDataLocation, missing file for %s", data_location)
+						data_location.delete()
+		except OperationalError, why:
+			log.warning("Could not lock database rows for LocalDataLocation: %s", why)
+	
 	
 	# Check that total cache usage is below limit
 	# Cleanup if necessary

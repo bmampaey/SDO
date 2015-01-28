@@ -107,7 +107,6 @@ def preview_data(request, data_series_name, recnum):
 def download_data(request, data_series_name, recnum):
 	# Create a data download request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
-	print "found", data_series_name
 	record = get_object_or_404(data_series.record, recnum=recnum)
 	data_download_request = DataDownloadRequest.create_from_record(record)
 	
