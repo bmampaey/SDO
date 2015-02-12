@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/1.6/ref/settings/
 """
 import os
 import socket
+from django.core.exceptions import SuspiciousOperation
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -32,12 +33,34 @@ except ImportError:
 		f.write("SECRET_KEY = '%s'\n" % secret_key)
 	from secret_key import *
 
+
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
 TEMPLATE_DEBUG = False
 
 ALLOWED_HOSTS = [".oma.be"]
+
+# Send security errors to console so that they are logged by apache
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+       'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            },
+    },
+    'loggers': {
+        'django.security.DisallowedHost': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    }
+}
 
 
 # Application definition

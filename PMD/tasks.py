@@ -166,12 +166,14 @@ def update_file_meta_data(request):
 @app.task
 def delete_data(request):
 	log.debug("delete_data %s", request)
-
-	# Find the local file path
-	file_path = get_file_path(request, local_data_site = True)
 	
-	# Delete the file
-	delete_file(file_path)
+	try:
+		# Find the local file path
+		file_path = get_file_path(request, local_data_site = True)
+		# Delete the file
+		delete_file(file_path)
+	except LocalDataLocation.DoesNotExist:
+		log.info("No file for %s", request)
 	
 	# Delete the data location
 	LocalDataLocation.delete_location(request)
@@ -498,10 +500,6 @@ def create_SDO_synoptic_tree(config, start_date = None, end_date=None):
 	frequency = GlobalConfig.get_or_fail(config + "_frequency")
 	soft_link = GlobalConfig.get(config + "_soft_link", False)
 	
-	if end_date is None:
-		end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-		#end_date = min(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), start_date + timedelta(hours=2))
-	
 	# Create the dataseries descriptions
 	data_series_desc = dict()
 	
@@ -516,32 +514,36 @@ def create_SDO_synoptic_tree(config, start_date = None, end_date=None):
 	hmi_ic_45s = DataSeries.objects.get(drms_series__name="hmi.ic_45s")
 	data_series_desc["hmi.ic_45s"] = hmi_ic_45s.record.objects.filter(quality = 0)
 	
-	# To avoid creating huge record_sets, we request max 24 at a time
-	start_slot = GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29)) if start_date is None else start_date
-	end_slot = start_slot + 24 * frequency
+	# If start_date is not specified, use the oe saved in the global config
+	start_slot = start_date or GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29))
 	
-	while start_slot <= end_date:
-		# Get the record sets
-		log.debug("Getting records from %s to %s", start_slot, min(end_slot, end_date))
-		record_sets = create_record_sets(data_series_desc, frequency, start_slot, min(end_slot, end_date))
-		start_slot = end_slot
-		end_slot = start_slot + 24 * frequency
+	# If end_date is not sepecified, use the current day
+	end_slot = end_date or datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+	
+	# Get the record sets
+	log.debug("Getting records from %s to %s", start_slot, end_slot)
+	record_sets = create_record_sets(data_series_desc, frequency, start_slot, end_slot)
+	
+	# Remove the last record sets that are incomplete
+	times = sorted(record_sets.keys())
+	while times and len(record_sets[times[-1]]) < len(data_series_desc):
+		log.debug("Record set for time %s is incomplete %s/%s, delaying until next run.", times[-1].isoformat(), len(record_sets[times[-1]]), len(data_series_desc))
+		del record_sets[times[-1]]
+		times.pop()
+	
+	# We get the files and make the links
+	for time, record_set in record_sets.iteritems():
+		log.debug("Requesting data and creating links for %s", time.isoformat())
+		for desc, record in record_set.iteritems():
+			request = DataDownloadRequest.create_from_record(record)
+			link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d"), record.filename)
+			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link, force=True))
 		
-		# We get the files and make the links
-		for time in record_sets.keys():
-			for desc, record in record_sets[time].iteritems():
-				request = DataDownloadRequest.create_from_record(record)
-				link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d"), record.filename)
-				get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link, force=True))
-		
-		# We save the start date for the next run if it was not called manually
-		if start_date is None and record_sets:
-			# Set the start_date for the next run as the last not full set
-			times = record_sets.keys()
-			times.sort()
-			while times and len(record_sets[times[-1]]) < len(data_series_desc):
-				start_date = times.pop()
-			GlobalConfig.set(config + "_start_date", start_date, help_text = "Start date for create_SDO_synoptic_tree %s" % config)
+	# We save the start date for the next run if it was not called manually
+	if start_date is None and record_sets:
+		start_date = max(record_sets.iterkeys())
+		log.info("Next start date will be %s", start_date)
+		GlobalConfig.set(config + "_start_date", start_date, help_text = "Start date for create_SDO_synoptic_tree %s" % config)
 
 
 # Django tasks
