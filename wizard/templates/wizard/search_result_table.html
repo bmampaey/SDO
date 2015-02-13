@@ -31,12 +31,12 @@
 </table>
 <div class = "page_navigation">
 	{% if first_page_url_query %}
-	<a class="first_page small_button" title="Go to first page" href="{% url 'PMD:search_result_table' data_series_name %}?{{ first_page_url_query }}">First page</a>
+	<a class="first_page small_button" title="Go to first page" href="{% url 'wizard:search_result_table' data_series_name %}?{{ first_page_url_query }}">First page</a>
 	{% else %}
 	<a class="first_page small_button" title="Go to first page">First page</a>
 	{% endif %}
 	{% if previous_page_url_query %}
-	<a class="previous_page small_button" title="Go to previous page" href="{% url 'PMD:search_result_table' data_series_name %}?{{ previous_page_url_query }}">Previous page</a>
+	<a class="previous_page small_button" title="Go to previous page" href="{% url 'wizard:search_result_table' data_series_name %}?{{ previous_page_url_query }}">Previous page</a>
 	{% else %}
 	<a class="previous_page small_button" title="Go to previous page">Previous page</a>
 	{% endif %}
@@ -44,12 +44,12 @@
 	<button class="select_all" title="Select all">Select all</button>
 	<button class="unselect_all" title="Unselect all">Unselect all</button>
 	{% if next_page_url_query %}
-	<a class="next_page small_button" title="Go to next page" href="{% url 'PMD:search_result_table' data_series_name %}?{{ next_page_url_query }}">Next page</a>
+	<a class="next_page small_button" title="Go to next page" href="{% url 'wizard:search_result_table' data_series_name %}?{{ next_page_url_query }}">Next page</a>
 	{% else %}
 	<a class="next_page small_button" title="Go to next page">Next page</a>
 	{% endif %}
 	{% if last_page_url_query %}
-	<a class="last_page small_button" title="Go to last page" href="{% url 'PMD:search_result_table' data_series_name %}?{{ last_page_url_query }}">Last page</a>
+	<a class="last_page small_button" title="Go to last page" href="{% url 'wizard:search_result_table' data_series_name %}?{{ last_page_url_query }}">Last page</a>
 	{% else %}
 	<a class="last_page small_button" title="Go to last page">Last page</a>
 	{% endif %}

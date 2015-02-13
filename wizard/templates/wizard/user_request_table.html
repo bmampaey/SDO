@@ -16,7 +16,7 @@
 				<a class="open_ftp_location small_button" title="Open ftp location" href="{{ row.ftp_path }}" target="_blank">Open</a>
 			</td>
 			<td>
-				<a class="delete_request small_button" title="Delete request" href="{% url 'PMD:delete_user_request' request_type row.request_id %}">Delete</a>
+				<a class="delete_request small_button" title="Delete request" href="{% url 'wizard:delete_user_request' request_type row.request_id %}">Delete</a>
 			</td>
 			{% for field in row.fields %}
 			<td>{{ field }}</td>

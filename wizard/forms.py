@@ -6,20 +6,10 @@ from django import forms
 from django.core.paginator import EmptyPage, PageNotAnInteger
 from django.http import QueryDict
 
-
-from PMD.paginators import EstimatedCountPaginator, CadencePaginator
-from PMD.models import DataSeries, GlobalConfig
-from PMD.form_fields import CadenceField, CommaSeparatedIntegerField
-
-AIA_WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335, 1600, 1700, 4500]
-
-
-class LoginForm(forms.Form):
-	username = forms.CharField(required=True, widget=forms.TextInput(attrs={'placeholder': 'username'}))
-	password = forms.CharField(required=True, widget=forms.PasswordInput(attrs={'placeholder': 'password'}))
-
-class EmailLoginForm(forms.Form):
-	email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={'placeholder': 'my.email@address.com'}))
+from PMD.models import DataSeries
+from global_config.models import GlobalConfig
+from wizard.paginators import EstimatedCountPaginator, CadencePaginator
+from wizard.form_fields import CadenceField, CommaSeparatedIntegerField
 
 class DataSeriesSearchForm(forms.Form):
 	""" Common class for all data series search form. Must be inherited for each data series """
@@ -132,6 +122,7 @@ class DataSeriesSearchForm(forms.Form):
 
 
 class AiaLev1SearchForm(DataSeriesSearchForm):
+	AIA_WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335, 1600, 1700, 4500]
 	record_table = "aia_lev1"
 	tab_name = "AIA Lev1"
 	minimal_cadence = 12
@@ -159,7 +150,7 @@ class AiaLev1SearchForm(DataSeriesSearchForm):
 			raise Exception("For AIA you need to select at least one wavelength")
 		
 		# Add a condition if only a subset of the wavelength was selected
-		elif len(set(AIA_WAVELENGTHS) - wavelengths) > 0:
+		elif len(set(cls.AIA_WAVELENGTHS) - wavelengths) > 0:
 			query_set = query_set.filter(wavelnth__in=wavelengths)
 		
 		return query_set

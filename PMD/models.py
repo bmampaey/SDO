@@ -13,12 +13,13 @@ from django.db.models import signals
 from django.dispatch import receiver
 
 # djorm-pgarray allow to use postgres arrays
-# To install: "sudo pip install djorm-pgarray"
 from djorm_pgarray.fields import BigIntegerArrayField, TextArrayField, ArrayField, IntegerArrayField
 
 from celery.task.control import revoke as revoke_task
 
 from DRMS.models import DRMSDataSeries, AiaLev1FitsHeader, HmiIc45sFitsHeader, HmiM45sFitsHeader, HmiMharp720SFitsHeader, HmiSharp720SFitsHeader
+from global_config.models import GlobalConfig
+from account.models import UserProfile
 from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
 
 
@@ -30,99 +31,6 @@ logging.basicConfig(level = logging.DEBUG, format = "%(levelname)s %(funcName)s 
 log = logging.getLogger(__name__)
 
 
-
-class GlobalConfig(models.Model):
-	PYTHON_TYPE_CHOICES = (
-		("string", "string"),
-		("bool", "bool"),
-		("int", "int"),
-		("float", "float"),
-		("datetime", "datetime (iso format)"),
-		("timedelta", "timedelta (in seconds)"),
-	)
-	name = models.CharField(max_length = 80, primary_key = True)
-	value = models.CharField(max_length = 80, blank=False, null=False)
-	python_type = models.CharField(max_length = 12, blank=False, null=False, default = "string", choices = PYTHON_TYPE_CHOICES)
-	help_text = models.CharField(max_length = 80, blank=True, null=True, default = None)
-	
-	class Meta:
-		db_table = "global_config"
-		ordering = ["name"]
-		verbose_name = "Global configuration variable"
-	
-	def __unicode__(self):
-		return unicode(self.name)
-	
-	@staticmethod
-	def cast(value, python_type):
-		""" Cast the value to the one of the known python type """
-		if python_type == "string":
-			return value
-		elif python_type == "bool":
-			return value.lower() in ['true', 't', 'y', 'yes', '1']
-		elif python_type == "int":
-			return int(value)
-		elif python_type == "float":
-			return float(value)
-		elif python_type == "datetime":
-			return date_parser.parse(value)
-		elif python_type == "timedelta":
-			return timedelta(seconds=float(value))
-		else:
-			raise Exception("Unknown python type %" +  python_type)
-	
-	@classmethod
-	def set(cls, name, value, help_text = "Please, set description."):
-		if isinstance(value, datetime):
-			python_type = "datetime"
-			value = value.isoformat()
-		elif isinstance(value, timedelta):
-			python_type = "timedelta"
-			value = value.total_seconds()
-		else:
-			python_type = type(value).__name__
-			if python_type not in [a for (a,b) in cls.PYTHON_TYPE_CHOICES]:
-				raise Exception("Invalid python type for global config variable %s with value %s" % (name, value))
-		
-		try:
-			variable, created = cls.objects.get_or_create(name=name, defaults={"value": str(value), "python_type": python_type, "help_text": help_text})
-		except IntegrityError:
-			pass
-		else:
-			if not created:
-				variable.value = value
-				variable.save()
-	
-	@classmethod
-	def get(cls, name, default = None):
-		#import pdb; pdb.set_trace()
-		try:
-			variable = cls.objects.get(name=name)
-		except cls.DoesNotExist:
-			cls.set(name, default, help_text = "Automatically created from application, please check and set decription")
-			return default
-		else:
-			return cls.cast(variable.value, variable.python_type)
-	
-	
-	@classmethod
-	def get_or_fail(cls, name):
-		try:
-			variable = cls.objects.get(name=name)
-		except cls.DoesNotExist, why:
-			# Hack the exception to add the looked up variable name to the message
-			why.args = ("Global configuration variable %s is not set" % name, ) + why.args
-			raise
-		else:
-			return cls.cast(variable.value, variable.python_type)
-
-class UserProfile(models.Model):
-	user = models.OneToOneField(User, primary_key = True, related_name="profile")
-	user_request_retention_time = models.IntegerField(help_text = "The minimum retention time in days for user request. Leave blank to use default.", default=30, blank=False, null=False)
-	user_disk_quota = models.FloatField(help_text = "The maximum disk size in GB for user request. Leave blank to use default.", default=None, blank=False, null=False)
-	
-	class Meta:
-		db_table = "user_profile"
 
 class DataSite(models.Model):
 	name = models.CharField("Data site name.", max_length=12, primary_key = True)

@@ -37,9 +37,9 @@ except ImportError:
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-TEMPLATE_DEBUG = False
+TEMPLATE_DEBUG = True
 
 ALLOWED_HOSTS = [".oma.be"]
 
@@ -72,11 +72,12 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'accounts',
+    'djcelery',
+    'account',
     'tastypie',
     'PMD',
     'DRMS',
-    'djcelery'
+    'wizard'
 )
 
 import djcelery
