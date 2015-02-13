@@ -1,6 +1,5 @@
 from tastypie.resources import ModelResource, ALL, ALL_WITH_RELATIONS
-# See http://django-tastypie.readthedocs.org/en/latest/paginator.html why it is important for postgres to have a special paginator
-from paginator import EstimatedCountPaginator
+from SDO.paginator import TastypieEstimatedCountPaginator
 from PMD.models import DataSeries
 from PMD.models import AiaLev1Record, HmiIc45SRecord, HmiM45SRecord
 
@@ -12,7 +11,7 @@ class DataSeriesResource(ModelResource):
 			'data_series': ALL,
 			'prefered_datasite': ALL
 		}
-		paginator_class = EstimatedCountPaginator
+		paginator_class = TastypieEstimatedCountPaginator
 
 
 class AiaLev1Resource(ModelResource):
@@ -28,7 +27,7 @@ class AiaLev1Resource(ModelResource):
 			'quality': ALL,
 		}
 		excludes = ['t_rec_index', 'fsn' ]
-		paginator_class = EstimatedCountPaginator
+		paginator_class = TastypieEstimatedCountPaginator
 
 
 class HmiIc45SResource(ModelResource):
@@ -43,7 +42,7 @@ class HmiIc45SResource(ModelResource):
 			'quality': ALL,
 		}
 		excludes = ['t_rec_index', 'camera' ]
-		paginator_class = EstimatedCountPaginator
+		paginator_class = TastypieEstimatedCountPaginator
 
 
 class HmiM45SResource(ModelResource):
@@ -58,4 +57,4 @@ class HmiM45SResource(ModelResource):
 			'quality': ALL,
 		}
 		excludes = ['t_rec_index', 'camera' ]
-		paginator_class = EstimatedCountPaginator
+		paginator_class = TastypieEstimatedCountPaginator

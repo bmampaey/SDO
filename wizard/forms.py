@@ -8,7 +8,8 @@ from django.http import QueryDict
 
 from PMD.models import DataSeries
 from global_config.models import GlobalConfig
-from wizard.paginators import EstimatedCountPaginator, CadencePaginator
+from SDO.paginators import EstimatedCountPaginator
+from wizard.paginators import CadencePaginator
 from wizard.form_fields import CadenceField, CommaSeparatedIntegerField
 
 class DataSeriesSearchForm(forms.Form):

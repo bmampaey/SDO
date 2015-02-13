@@ -1,6 +1,6 @@
 from tastypie.resources import ModelResource, ALL, ALL_WITH_RELATIONS
 from tastypie import fields
-from paginator import EstimatedCountPaginator
+from SDO.paginatosr import TastypieEstimatedCountPaginator
 from DRMS.models import DRMSDataSeries
 from DRMS.models import AiaLev1FitsHeader
 from DRMS.models import HmiIc45sFitsHeader
@@ -27,7 +27,7 @@ class AiaLev1FitsHeaderResource(ModelResource):
 			'wavelnth': ALL,
 			'quality': ALL
 		}
-		paginator_class = EstimatedCountPaginator
+		paginator_class = TastypieEstimatedCountPaginator
 
 
 class HmiIc45sFitsHeaderResource(ModelResource):
@@ -41,7 +41,7 @@ class HmiIc45sFitsHeaderResource(ModelResource):
 			'wavelnth': ALL,
 			'quality': ALL
 		}
-		paginator_class = EstimatedCountPaginator
+		paginator_class = TastypieEstimatedCountPaginator
 
 
 class HmiM45sFitsHeaderResource(ModelResource):
@@ -55,4 +55,4 @@ class HmiM45sFitsHeaderResource(ModelResource):
 			'wavelnth': ALL,
 			'quality': ALL
 		}
-		paginator_class = EstimatedCountPaginator
+		paginator_class = TastypieEstimatedCountPaginator
