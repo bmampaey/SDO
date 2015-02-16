@@ -19,8 +19,6 @@ from celery.utils.log import get_task_logger
 import djcelery.schedulers
 import csv
 
-from PMD.periodic_tasks_schedule import celery_beat_schedule
-
 log = get_task_logger("test")
 app = Celery('app', broker='amqp://admin:admin@localhost:5672//', backend='cache+memcached://127.0.0.1:11211/')
 
@@ -34,7 +32,6 @@ app.conf.update(
 	CELERY_DISABLE_RATE_LIMITS = True, # To be removed if we set a rate limit on some tasks
 	CELERY_TIMEZONE = 'Europe/Brussels',
 	CELERYBEAT_SCHEDULER = djcelery.schedulers.DatabaseScheduler,
-	CELERYBEAT_SCHEDULE = celery_beat_schedule,
 	# Send a mail each time a task fail
 	CELERY_SEND_TASK_ERROR_EMAILS = True,
 	# Emails settings are overriden by Django email settings.

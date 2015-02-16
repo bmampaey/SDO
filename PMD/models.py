@@ -20,7 +20,6 @@ from celery.task.control import revoke as revoke_task
 from DRMS.models import DRMSDataSeries, AiaLev1FitsHeader, HmiIc45sFitsHeader, HmiM45sFitsHeader, HmiMharp720SFitsHeader, HmiSharp720SFitsHeader
 from global_config.models import GlobalConfig
 from account.models import UserProfile
-from routines.vso_sum import call_vso_sum_put, call_vso_sum_alloc
 
 
 # TODO: check how to store array of uuid
