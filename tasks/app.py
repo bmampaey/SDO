@@ -7,7 +7,7 @@ from celery import Celery
 from django.conf import settings
 from djcelery.schedulers import DatabaseScheduler
 
-app = Celery('app', broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
+app = Celery('app', broker='amqp://admin:admin@localhost:5672//', backend='redis://localhost:6379/0')
 
 # Optional configuration, see the application user guide.
 app.conf.update(

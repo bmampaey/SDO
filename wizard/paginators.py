@@ -1,4 +1,5 @@
 from django.core.paginator import Paginator
+from django.db.models import Max, Min
 
 class CadencePaginator(Paginator):
 	"""Paginator that allows to specify a cadence. Relies on the date_obs attribute of the given object lists"""
