@@ -5,7 +5,7 @@ from django.http import HttpResponse, HttpResponseServerError, HttpResponseForbi
 from django.views.decorators.http import require_safe
 
 from PMD.models import DataSeries, DataDownloadRequest
-from PMD.tasks import get_preview, get_data
+from tasks import get_preview, get_data
 
 # Assert we only have get
 @require_safe

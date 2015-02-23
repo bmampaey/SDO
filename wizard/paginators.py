@@ -21,16 +21,21 @@ class CadencePaginator(Paginator):
 	def per_page(self):
 		return max(int(self._per_page / self.per_slot) * self.per_slot, self.per_slot)
 	
+	def __set_start_end_date(self):
+		dates = [object_list.aggregate(min_date_obs=Min('date_obs'), max_date_obs=Max('date_obs')) for object_list in self.object_lists]
+		self._start_date = min([date['min_date_obs'] for date in dates])
+		self._end_date = max([date['max_date_obs'] for date in dates])
+	
 	@property
 	def start_date(self):
 		if self._start_date is None:
-			self._start_date = min([object_list.order_by("date_obs").values("date_obs")[0]["date_obs"] for object_list in self.object_lists])
+			self.__set_start_end_date()
 		return self._start_date
 	
 	@property
 	def end_date(self):
 		if self._end_date is None:
-			self._end_date = max([object_list.order_by("-date_obs").values("date_obs")[0]["date_obs"] for object_list in self.object_lists])
+			self.__set_start_end_date()
 		return self._end_date
 	
 	@property

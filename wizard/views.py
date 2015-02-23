@@ -7,11 +7,11 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_safe, require_POST, require_http_methods
 
 from PMD.models import DataSeries, DataDownloadRequest
-from PMD.models import ExportDataRequest, ExportMetaDataRequest
+from PMD.models import ExportDataRequest, ExportMetadataRequest
 
 from wizard.forms import DataSeriesSearchForm
 from account.forms import EmailLoginForm
-from PMD.tasks import execute_export_data_request, execute_export_meta_data_request
+from tasks import execute_export_data_request, execute_export_metadata_request
 
 
 # Assert we only have get
@@ -90,8 +90,8 @@ def search_result_action(request, action_type, data_series_name):
 		return download_bundle(request, data_series_name, recnums, paginator)
 	elif action_type == "export_data":
 		return export_data(request, data_series_name, recnums, paginator)
-	elif action_type == "export_meta_data":
-		return export_meta_data(request, data_series_name, recnums, paginator)
+	elif action_type == "export_metadata":
+		return export_metadata(request, data_series_name, recnums, paginator)
 	elif action_type == "export_cutout":
 		return export_cutout(request, data_series_name, recnums, paginator)
 	else:
@@ -117,16 +117,16 @@ def export_data(request, data_series_name, recnums, paginator):
 	return render(request, 'wizard/user_request_message.html', { "request": user_request })
 
 
-def export_meta_data(request, data_series_name, recnums, paginator):
-	""" Create a ExportMetaDataRequest and execute it asynchronously """
+def export_metadata(request, data_series_name, recnums, paginator):
+	""" Create a ExportMetadataRequest and execute it asynchronously """
 	
 	# Create the request
 	data_series = get_object_or_404(DataSeries, pk=data_series_name)
-	user_request = ExportMetaDataRequest(user = request.user, data_series = data_series, recnums = recnums)
+	user_request = ExportMetadataRequest(user = request.user, data_series = data_series, recnums = recnums)
 	user_request.save()
 	#import pdb; pdb.set_trace()
 	# Execute the request
-	async_result = execute_export_meta_data_request.delay(user_request, recnums, paginator)
+	async_result = execute_export_metadata_request.delay(user_request, recnums, paginator)
 	
 	# Return message about request
 	return render(request, 'wizard/user_request_message.html', { "request": user_request })
@@ -150,8 +150,8 @@ def user_request_table(request, request_type):
 	# Get the model for the request type
 	if request_type == "export_data":
 		user_request_model = ExportDataRequest
-	elif request_type == "export_meta_data":
-		user_request_model = ExportMetaDataRequest
+	elif request_type == "export_metadata":
+		user_request_model = ExportMetadataRequest
 	else:
 		return HttpResponseNotFound("Unknown request type %s" % request_type)
 	
@@ -179,8 +179,8 @@ def delete_user_request(request, request_type, request_id):
 	# Get the model for the request type
 	if request_type == "export_data":
 		user_request_model = ExportDataRequest
-	elif request_type == "export_meta_data":
-		user_request_model = ExportMetaDataRequest
+	elif request_type == "export_metadata":
+		user_request_model = ExportMetadataRequest
 	else:
 		return HttpResponseNotFound("Unknown request type %s" % request_type)
 	

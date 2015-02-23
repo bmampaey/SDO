@@ -4,8 +4,22 @@ import time
 import socket
 import urlparse
 from celery import Task
+from app import app
 
-from Exceptions import LocateError, ConnectionError, SetupError, UpdateError
+class SetupError(Exception):
+	pass
+
+class ConnectionError(Exception):
+	pass
+
+class LocateError(Exception):
+	pass
+
+class LocationNotFound(Exception):
+	pass
+
+class UpdateError(Exception):
+	pass
 
 class DrmsDataLocator(Task):
 	abstract = True
@@ -122,7 +136,7 @@ class DrmsDataLocator(Task):
 		'''Update a data location request with the result of a call_jsoc_fetch'''
 		
 		if 'path' not in result or result['path'].upper() == "NA":
-			raise UpdateError("No path found in result %s for request %s" % (result, request))
+			raise LocationNotFound("No path found in result %s for request %s" % (result, request))
 		
 		elif 'susize' not in result:
 			# Because we don't know how to cope we just throw an exception
@@ -159,4 +173,19 @@ class DrmsDataLocator(Task):
 			request.path = result['path']
 			request.size = int(result['susize'])
 
-
+def create_data_locator(data_site, log = None):
+	"""Create specific data locator task for each data site"""
+	if log is not None:
+		log.debug("Creating %s data_locator for %s", data_site.data_download_protocol, data_site.name)
+	
+	# create a DRMS data locator task
+	@app.task(base=DrmsDataLocator, name=data_site.name + "_data_locator", bind=True)
+	def data_locator(self, request):
+		results = self.locate(request.sunum, log)
+		self.update_request(request, results[request.sunum], log)
+		return request
+	
+	# setup the task
+	data_locator.setup(url = data_site.data_location_request_url, timeout = data_site.data_location_request_timeout)
+	
+	return data_locator

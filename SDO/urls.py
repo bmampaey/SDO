@@ -5,8 +5,7 @@ admin.autodiscover()
 
 urlpatterns = patterns('',
     url(r'^admin/', include(admin.site.urls)),
-    url(r'^accounts/', include('account.urls', namespace="account")),
-    url(r'^DRMS/', include('DRMS.urls', namespace="DRMS")),
+    url(r'^account/', include('account.urls', namespace="account")),
     url(r'^PMD/', include('PMD.urls', namespace="PMD")),
     url(r'^wizard/', include('wizard.urls', namespace="wizard")),
 )

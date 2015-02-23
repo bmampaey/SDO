@@ -12,7 +12,7 @@
 			CALENDAR_IMAGE_URL = "{% static 'wizard/images/calendar.png' %}";
 			LOADING_IMAGE_URL = "{% static 'wizard/images/loading.gif' %}";
 			EXPORT_DATA_REQUEST_TABLE_URL = "{% url 'wizard:user_request_table' 'export_data' %}";
-			EXPORT_META_DATA_REQUEST_TABLE_URL = "{% url 'wizard:user_request_table' 'export_meta_data' %}";
+			EXPORT_METADATA_REQUEST_TABLE_URL = "{% url 'wizard:user_request_table' 'export_metadata' %}";
 			USERNAME = "{{ user.username }}";
 		</script>
 		
@@ -61,9 +61,9 @@
 			</div>
 		</div>
 		{% if user.is_authenticated %}
-		<div id="export_meta_data_request_section" class="section">
+		<div id="export_metadata_request_section" class="section">
 		{% else %}
-		<div id="export_meta_data_request_section" class="section"  style="display: none;">
+		<div id="export_metadata_request_section" class="section"  style="display: none;">
 		{% endif %}
 			<div class="section_title">
 				Meta-data export requests
@@ -139,9 +139,9 @@
 							{% csrf_token %}
 							<button class="export_data" title="Export the selected data for download">Export data</button>
 						</form>
-						<form action="{% url 'wizard:search_result_action' 'export_meta_data' form.data_series_name %}" method="post">
+						<form action="{% url 'wizard:search_result_action' 'export_metadata' form.data_series_name %}" method="post">
 							{% csrf_token %}
-							<button class="export_meta_data" title="Export the selected meta-data to a csv file">Export keywords</button>
+							<button class="export_metadata" title="Export the selected meta-data to a csv file">Export keywords</button>
 						</form>
 						<form action="{% url 'wizard:search_result_action' 'export_cutout' form.data_series_name %}" method="post">
 							{% csrf_token %}

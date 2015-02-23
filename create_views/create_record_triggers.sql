@@ -12,7 +12,7 @@ BEGIN
 			VALUES (TG_ARGV[0], OLD.sunum, OLD.slotnum, OLD.segment, OLD.recnum, 'NEW', 0, now(), now());
 		-- If the recnum is larger we update the meta-data
 		ELSIF NEW.recnum > OLD.recnum THEN
-			INSERT INTO pmd.meta_data_update_request (data_series_name, sunum, slotnum, segment, recnum, status, priority, requested, updated, new_recnum)
+			INSERT INTO pmd.metadata_update_request (data_series_name, sunum, slotnum, segment, recnum, status, priority, requested, updated, new_recnum)
 			VALUES (TG_ARGV[0], OLD.sunum, OLD.slotnum, OLD.segment, OLD.recnum, 'NEW', 0, now(), now(), NEW.recnum);
 		END IF;
 	-- If the insert fail we just keep on going

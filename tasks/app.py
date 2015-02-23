@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 from __future__ import absolute_import
 import os
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
+
 from celery import Celery
 from django.conf import settings
 from djcelery.schedulers import DatabaseScheduler
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
-
-app = Celery('app', broker='amqp://admin:admin@localhost:5672//', backend='cache+memcached://127.0.0.1:11211/')
+app = Celery('app', broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
 
 # Optional configuration, see the application user guide.
 app.conf.update(

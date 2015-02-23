@@ -73,8 +73,9 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'djcelery',
-    'account',
     'tastypie',
+    'global_config',
+    'account',
     'PMD',
     'DRMS',
     'wizard'

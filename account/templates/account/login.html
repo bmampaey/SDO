@@ -1,0 +1,14 @@
+<form id="login_form" action="{% url 'account:login' %}" method="post">
+	{% csrf_token %}
+	<div class="section login_section">
+		<div class="section_title">
+			Please specify your email address so that we can notify you when your requests are ready.
+		</div>
+		<div class="section_content">
+			{{ form.as_p }}
+		</div>
+		<div class="actions">
+			<button type="submit" id="login" title="Log in the application">Login</button>
+		</div>
+	</div>
+</form>

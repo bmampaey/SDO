@@ -450,7 +450,7 @@ class DataRequest(models.Model):
 		get_latest_by = "requested"
 	
 	def __unicode__(self):
-		return u"%s D%d/S%05d %s" % (self.data_series.name, self.sunum, self.slotnum, self.status)
+		return u"series: %s recnum: %d sunum: %d slotnum: %05d status: %s" % (self.data_series.name, self.recnum, self.sunum, self.slotnum, self.status)
 	
 	def __lt__(self, other):
 		'''Return true if the priority is bigger'''
@@ -491,12 +491,12 @@ class DataDeleteRequest(DataRequest):
 		db_table = "data_delete_request"
 		verbose_name = "Data delete request"
 
-class MetaDataUpdateRequest(DataRequest):
+class MetadataUpdateRequest(DataRequest):
 	old_recnum = models.BigIntegerField(help_text = "JSOC Record number", blank=True, null=True, default=0)
 	
 	class Meta(DataRequest.Meta):
-		db_table = "meta_data_update_request"
-		verbose_name = "Meta-data update request"
+		db_table = "metadata_update_request"
+		verbose_name = "Metadata update request"
 
 ########################
 # User request models  #
@@ -603,11 +603,11 @@ def delete_export_data_files(sender, instance, using, **kwargs):
 	log.info("user request %s, delete files %s", str(instance), instance.export_path)
 	shutil.rmtree(instance.export_path, ignore_errors = True)
 	
-class ExportMetaDataRequest(UserRequest):
+class ExportMetadataRequest(UserRequest):
 	
 	class Meta(UserRequest.Meta):
-		db_table = "export_meta_data_request"
-		verbose_name = "Export meta-data request"
+		db_table = "export_metadata_request"
+		verbose_name = "Export metadata request"
 		
 	@property
 	def name(self):
@@ -639,9 +639,9 @@ class ExportMetaDataRequest(UserRequest):
 		]
 
 
-# Register a django signal so that when a ExportMetaDataRequest is deleted, the corresponding files are also deleted
-@receiver(signals.post_delete, sender=ExportMetaDataRequest)
-def delete_export_meta_data_files(sender, instance, using, **kwargs):
+# Register a django signal so that when a ExportMetadataRequest is deleted, the corresponding files are also deleted
+@receiver(signals.post_delete, sender=ExportMetadataRequest)
+def delete_export_metadata_files(sender, instance, using, **kwargs):
 	# Cancel the background task
 	if instance.task_ids:
 		log.info("user request %s, cancel tasks %s", str(instance), instance.task_ids)

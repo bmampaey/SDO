@@ -385,7 +385,7 @@ function load_user_tab_content()
 	// Load the export data request table
 	load_user_request_table($("div#export_data_request_section"), EXPORT_DATA_REQUEST_TABLE_URL, post_load_user_request_table);
 	// Load the export meta-data request table
-	load_user_request_table($("div#export_meta_data_request_section"), EXPORT_META_DATA_REQUEST_TABLE_URL, post_load_user_request_table);
+	load_user_request_table($("div#export_metadata_request_section"), EXPORT_METADATA_REQUEST_TABLE_URL, post_load_user_request_table);
 
 }
 
@@ -489,7 +489,7 @@ $.post(form.attr("action"), form.serialize())
 	$("button.search_data").button({icons: {primary: "ui-icon-search"}});
 	$("button.download_bundle").button({icons: {primary: "ui-icon-cart"}}).hide();
 	$("button.export_data").button({icons: {primary: "ui-icon-extlink"}});
-	$("button.export_meta_data").button({icons: {primary: "ui-icon-document"}});
+	$("button.export_metadata").button({icons: {primary: "ui-icon-document"}});
 	$("button.export_cutout").button({icons: {primary: "ui-icon-scissors"}}).hide();
 	
 	// When user make an export request, check that he is logged in first
