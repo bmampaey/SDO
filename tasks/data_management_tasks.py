@@ -50,9 +50,9 @@ def download_data(request):
 			# Get the remote file path
 			request.remote_file_path = get_data_location(request)
 		except LocationNotFound, why:
-			log.debug("No data location found for request %s from %s: %s", request, data_site.name, why)
+			log.debug("No data location found @ %s for request %s: %s", data_site.name, request, why)
 		except Exception, why:
-			log.error("Error while locating data for request %s from %s: %s", request, data_site.name, why)
+			log.error("Error while locating data @ %s for request %s: %s", data_site.name, request, why)
 		else:
 			attempts = max(data_site.data_download_max_attempts, 1)
 			while attempts > 0:
@@ -61,18 +61,18 @@ def download_data(request):
 				try:
 					if request.data_site.name not in data_downloaders:
 						data_downloaders[request.data_site.name] = create_data_downloader(request.data_site, log)
-					log.info("Downloading data for request %s from %s", request, request.data_site.name)
+					log.info("Downloading data @ %s for request %s", request.data_site.name, request)
 					data_downloaders[request.data_site.name](request)
 				# If data download fail because of wrong data location force a locate data
 				except FileNotFound:
-					log.info("Data for request %s not found where it was expected at %s. Forcing a locate data request.", request, request.data_site.name)
+					log.info("Data not found where it was expected @ %s for request %s. Forcing a locate data request.", request.data_site.name, request)
 					try:
 						request.remote_file_path = locate_data(request)
 					except Exception, why:
 						# If locate data does not find the path (raise exception) just pass the server
 						attempts = 0
 				except Exception, why:
-					log.error("Error while downloading data for request %s from %s: %s. Attempts lefts: %s", request, request.data_site.name, why, attempts)
+					log.error("Error while downloading data @ %s for request %s : %s. Attempts lefts: %s", request.data_site.name, request, why, attempts)
 				else:
 					# We have the file
 					download_ok = True
@@ -173,10 +173,10 @@ def locate_data(request):
 				data_locators[request.data_site.name] = create_data_locator(request.data_site, log)
 			data_locators[request.data_site.name](request)
 		except LocationNotFound, why:
-			log.info("No location found for request %s from %s: %s", request, request.data_site.name, why)
+			log.info("No location found @ %s for request %s: %s", request.data_site.name, request, why)
 			raise
 		except Exception, why:
-			log.error("Error while locating data for request %s from %s: %s. Attempts lefts: %s", request, request.data_site.name, why, attempts)
+			log.error("Error while locating data @ %s for request %s: %s. Attempts lefts: %s", request.data_site.name, request, why, attempts)
 			if attempts == 0:
 				raise
 		else:
