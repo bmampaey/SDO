@@ -29,10 +29,10 @@ celery_beat_schedule = {
 		'schedule': crontab(hour=0, minute=0),
 		'args': ()
 	},
-	'create_SDO_synoptic_tree': {
-		'task': 'tasks.data_management_tasks.create_SDO_synoptic_tree',
+	'create_AIA_HMI_1H_synoptic_tree': {
+		'task': 'tasks.data_management_tasks.create_AIA_HMI_synoptic_tree',
 		'schedule': crontab(hour=23, minute=0),
-		'args': ("1H_synoptic",)
+		'args': ("AIA_HMI_1H_synoptic",)
 	},
 }
 
