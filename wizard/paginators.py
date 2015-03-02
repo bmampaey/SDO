@@ -42,9 +42,13 @@ class CadencePaginator(Paginator):
 	@property
 	def count(self):
 		if self._count is None:
-			delta_time = self.end_date - self.start_date
-			# The number of slots time the number per slots
-			self._count = int(delta_time.total_seconds() / self.cadence.total_seconds()) * self.per_slot
+			# The sets could be empty
+			if self.start_date is None or self.end_date is None:
+				self._count = 0
+			else:
+				delta_time = self.end_date - self.start_date
+				# The number of slots time the number per slots
+				self._count = int(delta_time.total_seconds() / self.cadence.total_seconds()) * self.per_slot
 		return self._count
 	
 	def page(self, number):

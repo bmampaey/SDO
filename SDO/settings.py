@@ -37,7 +37,7 @@ except ImportError:
 SILENCED_SYSTEM_CHECKS = ["models.E007"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 TEMPLATE_DEBUG = False
 

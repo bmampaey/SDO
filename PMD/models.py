@@ -551,13 +551,13 @@ class ExportDataRequest(UserRequest):
 	
 	@property
 	def export_path(self):
-		cache_path = GlobalConfig.get_or_fail("export_cache_path")
+		cache_path = GlobalConfig.get_or_fail("exports_path")
 		path = os.path.join(cache_path, self.user.username, self.data_series.name, self.name)
 		return path
 	
 	@property
 	def ftp_path(self):
-		ftp_url = GlobalConfig.get_or_fail("export_ftp_url")
+		ftp_url = GlobalConfig.get_or_fail("exports_ftp_url")
 		path = os.path.join(ftp_url, self.user.username, self.data_series.name, self.name)
 		return path
 	
@@ -614,13 +614,13 @@ class ExportMetadataRequest(UserRequest):
 	
 	@property
 	def export_path(self):
-		cache_path = GlobalConfig.get_or_fail("export_cache_path")
+		cache_path = GlobalConfig.get_or_fail("exports_path")
 		path = os.path.join(cache_path, self.user.username, self.name + ".csv")
 		return path
 	
 	@property
 	def ftp_path(self):
-		ftp_url = GlobalConfig.get_or_fail("export_ftp_url")
+		ftp_url = GlobalConfig.get_or_fail("exports_ftp_url")
 		path = os.path.join(ftp_url, self.user.username, self.name + ".csv")
 		return path
 	

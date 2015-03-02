@@ -27,6 +27,13 @@ def execute_export_data_request(self, request, recnums, paginator):
 	request.task_ids = [self.request.id]
 	update_request_status(request, "STARTED")
 	
+	# Create the directory tree
+	try:
+		os.makedirs(request.export_path)
+	except OSError, why:
+		if why.errno != errno.EEXIST:
+			raise
+	
 	# To avoid user filling up our system, we check that the request is reasonable
 	try:
 		user_disk_quota = request.user.profile.user_disk_quota
@@ -127,6 +134,13 @@ def execute_export_metadata_request(self, request, recnums, paginator):
 	request.task_ids = [self.request.id]
 	update_request_status(request, "STARTED")
 	
+	# Create the directory tree
+	try:
+		os.makedirs(os.path.dirname(request.export_path))
+	except OSError, why:
+		if why.errno != errno.EEXIST:
+			raise
+	
 	# Add the recnums from the paginator to the request (excluding recnums)
 	if paginator is not None:
 		for page_number in paginator.page_range:
@@ -143,13 +157,6 @@ def execute_export_metadata_request(self, request, recnums, paginator):
 	
 	log.debug("Found %s records", len(request.recnums))
 	update_request_status(request, "RUNNING")
-	
-	# Create the directory tree
-	try:
-		os.makedirs(os.path.dirname(request.export_path))
-	except OSError, why:
-		if why.errno != errno.EEXIST:
-			raise
 	
 	# Write the csv file
 	try:
