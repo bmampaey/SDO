@@ -34,7 +34,7 @@ except ImportError:
 	from secret_key import *
 
 
-
+SILENCED_SYSTEM_CHECKS = ["models.E007"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
@@ -72,7 +72,7 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'djcelery',
+#    'djcelery',
     'tastypie',
     'global_config',
     'account',
@@ -81,8 +81,8 @@ INSTALLED_APPS = (
     'wizard'
 )
 
-import djcelery
-djcelery.setup_loader()
+#import djcelery
+#djcelery.setup_loader()
 
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',

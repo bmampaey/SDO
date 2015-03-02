@@ -1,11 +1,10 @@
 import os
 from datetime import datetime, timedelta
-import dateutil.parser as date_parser
 import shutil
 import logging
 import uuid
 
-from django.db import models, IntegrityError
+from django.db import models
 from django.forms.models import model_to_dict
 from django.core.validators import RegexValidator
 from django.contrib.auth.models import User
@@ -312,7 +311,7 @@ class SAODataLocation(DrmsDataLocation):
 ######################
 
 class PmdRecord(models.Model):
-	recnum = models.BigIntegerField(primary_key=True)
+	recnum = models.BigIntegerField(primary_key=True, db_column="recnum")
 	sunum = models.BigIntegerField(blank=True, null=True)
 	slotnum = models.IntegerField(blank=True, null=True)
 	segment = models.TextField(blank=True)

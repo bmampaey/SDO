@@ -243,17 +243,36 @@ def delete_file(file_path):
 
 
 @app.task
-def create_SDO_synoptic_tree(config, start_date = None, end_date=None):
+def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_folder = None, frequency = None, soft_link = None):
 	""" Creates a synoptic directory tree of SDO data, takes as argument a prefix for the following Global Configuration variables:
+	{prefix}_start_date: date at which to start the synoptic tree
 	{prefix}_root_folder: The folder where the tree will be created
 	{prefix}_frequency: The frequency of the synoptic dataset (must be of type timedelta)
 	{prefix}_soft_link: Set to true if you want soft link instead of hard link
+	
+	These parameters can also be passed manually by name, in which case they will override the value in the Global configuration variables
 	"""
 	log.debug("create_SDO_synoptic_tree %s", config)
-	#import pdb; pdb.set_trace()
-	root_folder = GlobalConfig.get_or_fail(config + "_root_folder")
-	frequency = GlobalConfig.get_or_fail(config + "_frequency")
-	soft_link = GlobalConfig.get(config + "_soft_link", False)
+	
+	# Parse the parameters
+	if start_date is None:
+		start_slot = GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29))
+	else:
+		start_slot = start_date
+	
+	if end_date is None:
+		datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+	else:
+		end_slot = end_date
+	
+	if root_folder is None:
+		root_folder = GlobalConfig.get_or_fail(config + "_root_folder")
+	
+	if frequency is None:
+		frequency = GlobalConfig.get_or_fail(config + "_frequency")
+	
+	if soft_link is None:
+		soft_link = GlobalConfig.get(config + "_soft_link", False)
 	
 	# Create the dataseries descriptions
 	data_series_desc = dict()
@@ -269,11 +288,6 @@ def create_SDO_synoptic_tree(config, start_date = None, end_date=None):
 	hmi_ic_45s = DataSeries.objects.get(drms_series__name="hmi.ic_45s")
 	data_series_desc["hmi.ic_45s"] = hmi_ic_45s.record.objects.filter(quality = 0)
 	
-	# If start_date is not specified, use the oe saved in the global config
-	start_slot = start_date or GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29))
-	
-	# If end_date is not sepecified, use the current day
-	end_slot = end_date or datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 	
 	# Get the record sets
 	log.debug("Getting records from %s to %s", start_slot, end_slot)
@@ -294,7 +308,7 @@ def create_SDO_synoptic_tree(config, start_date = None, end_date=None):
 			link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d"), record.filename)
 			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link, force=True), link_error=update_request_status.si(request, "FAILED"))
 		
-	# We save the start date for the next run if it was not called manually
+	# We save the start date for the next run if it was not specified by name
 	if start_date is None and record_sets:
 		start_date = max(record_sets.iterkeys())
 		log.info("Next start date will be %s", start_date)

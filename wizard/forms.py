@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime, timedelta
-import dateutil.parser as date_parser
 
 from django import forms
 from django.core.paginator import EmptyPage, PageNotAnInteger
