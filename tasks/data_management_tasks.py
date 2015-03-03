@@ -254,16 +254,16 @@ def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_
 	"""
 	log.debug("create_SDO_synoptic_tree %s", config)
 	
+	# Set to True if the global config variables must be updated at the end
+	update_config = False
+	
 	# Parse the parameters
 	if start_date is None:
-		start_slot = GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29))
-	else:
-		start_slot = start_date
+		start_date = GlobalConfig.get(config + "_start_date", datetime(2010, 03, 29))
+		update_config = True
 	
 	if end_date is None:
-		datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-	else:
-		end_slot = end_date
+		end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 	
 	if root_folder is None:
 		root_folder = GlobalConfig.get_or_fail(config + "_root_folder")
@@ -290,8 +290,8 @@ def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_
 	
 	
 	# Get the record sets
-	log.debug("Getting records from %s to %s", start_slot, end_slot)
-	record_sets = create_record_sets(data_series_desc, frequency, start_slot, end_slot)
+	log.debug("Getting records from %s to %s", start_date, end_date)
+	record_sets = create_record_sets(data_series_desc, frequency, start_date, end_date)
 	
 	# Remove the last record sets that are incomplete
 	times = sorted(record_sets.keys())
@@ -308,8 +308,8 @@ def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_
 			link_path = os.path.join(root_folder, desc, time.strftime("%Y/%m/%d"), record.filename)
 			get_data.apply_async((request, ), link=create_link.s(link_path, soft=soft_link, force=True), link_error=update_request_status.si(request, "FAILED"))
 		
-	# We save the start date for the next run if it was not specified by name
-	if start_date is None and record_sets:
+	# We save the start date for the next run if any record set was processed
+	if update_config and record_sets:
 		start_date = max(record_sets.iterkeys())
 		log.info("Next start date will be %s", start_date)
 		GlobalConfig.set(config + "_start_date", start_date, help_text = "Start date for create_SDO_synoptic_tree %s" % config)
