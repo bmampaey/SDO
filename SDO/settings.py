@@ -37,7 +37,7 @@ except ImportError:
 SILENCED_SYSTEM_CHECKS = ["models.E007"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 TEMPLATE_DEBUG = False
 
@@ -72,7 +72,7 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-#    'djcelery',
+    'djcelery',
     'tastypie',
     'global_config',
     'account',
