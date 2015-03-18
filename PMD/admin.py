@@ -8,7 +8,7 @@ from PMD.models import  ExportDataRequest, ExportMetadataRequest
 
 
 class DataSiteAdmin(admin.ModelAdmin):
-	list_display = ("name", "priority", "enabled", "data_download_protocol")
+	list_display = ("name", "priority", "enabled", "data_download_protocol", "data_locate_protocol")
 
 class ExportDataRequestAdmin(admin.ModelAdmin):
 	list_display = ("user", "estimated_size", "expiration_date", "status", "requested")

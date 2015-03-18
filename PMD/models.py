@@ -35,6 +35,8 @@ class DataSite(models.Model):
 	priority = models.PositiveIntegerField(help_text = "Priority of the data site. The higher the value, the higher the priority.", default=0, blank=True, unique = True)
 	enabled = models.BooleanField(help_text = "Data site is to be used to download data.", default = True, blank=True)
 	contact = models.CharField(help_text = "Contact emails for the data site.", blank=True, max_length=200)
+	description = models.TextField(help_text = "Information about the data site.", blank=True, null=True)
+	
 	data_download_protocol = models.CharField(help_text = "Protocol to download data.", max_length=12, default = "sftp", choices=[("sftp", "sftp"), ("http", "http")])
 	data_download_server = models.CharField(help_text = "Address of the data server.", max_length=50)
 	data_download_user = models.CharField(help_text = "User for the data server connection.", max_length=12, blank=True)
@@ -42,6 +44,8 @@ class DataSite(models.Model):
 	data_download_port = models.IntegerField(help_text = "Port for the data server connection.", default=None, blank=True, null=True)
 	data_download_timeout = models.IntegerField(help_text = "Timeout for the data download.", default=None, blank=True, null=True)
 	data_download_max_attempts = models.PositiveIntegerField(help_text = "Maximal number of attempt to download data from the server before giving up.", default=3, blank=True, null=False)
+	
+	data_location_protocol = models.CharField(help_text = "Protocol to locate data.", max_length=12, default = "drms", choices=[("drms", "drms"), ("tape", "tape")])
 	data_location_table = models.CharField(help_text = "Name of the data location table/model for this data site.", max_length=20, blank=False, null=False)
 	data_location_request_url = models.URLField(help_text = "URL to request data location on data server.", max_length=200)
 	data_location_request_timeout = models.PositiveIntegerField(help_text = "Timeout in seconds before a data location request to the server is considered failed.", default=120, blank=True, null=False)
