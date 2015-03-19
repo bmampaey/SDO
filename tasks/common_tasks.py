@@ -5,6 +5,8 @@ from celery.utils.log import get_task_logger
 
 from django.conf import settings
 from django.core import mail
+from django.template.loader import render_to_string
+from account.models import UserMessage
 
 from tasks import app
 
@@ -53,18 +55,20 @@ def create_link(file_path, link_path, soft = False, force = False):
 	else:
 		os.link(file_path, link_path)
 
-@app.task()
-def send_email(subject, content, to, copy_to_admins = False):
-	log.debug("send_email %s, %s, %s", subject, content, to)
-	if not isinstance(to, (list, tuple)):
-		to = [to]
+@app.task
+def send_message(subject_template, content_template, user, level = "INFO", kwargs={}, by_mail = False, copy_to_admins = False):
+	log.debug("send_message %s, %s, %s", subject, content, user)
 	
-	if copy_to_admins:
-		to = list(to)
-		for admin in settings.ADMINS:
-			to.append(admin[1])
+	subject = render_to_string(subject_template, kwargs)
+	content = render_to_string(content_template, kwargs)
+	UserMessage.objects.create(user = user, subject = subject, content = content, level = level)
 	
-	mail.send_mail(subject.replace("\n", ""), content, None, to)
+	if by_mail == True:
+		to = [user.email]
+		if copy_to_admins:
+			to += [admin[1] for admin in settings.ADMINS]
+		
+		mail.send_mail(subject.replace("\n", " "), content, None, to)
 
 
 @app.task

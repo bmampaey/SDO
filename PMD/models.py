@@ -600,7 +600,7 @@ def delete_export_data_files(sender, instance, using, **kwargs):
 	# Cancel the background task
 	if instance.task_ids:
 		log.info("user request %s, cancel tasks %s", str(instance), instance.task_ids)
-		instance.revoke()
+		instance.revoke(terminate=True)
 	
 	# Delete the files
 	log.info("user request %s, delete files %s", str(instance), instance.export_path)

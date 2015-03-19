@@ -1,0 +1,5 @@
+Your {{ request.type|lower }} for SDO/{{ request.data_series }} submitted on {{ request.requested }} is too large and was cancelled.
+
+Your request size is estimated at {{estimated_size}} GB, and you have only {{remaining_disk_quota}} GB out of a total of {{user_disk_quota}} GB. 
+
+You can try to delete old requests and re-submit the request or contact the website administrators for help (they received a copy of this email).

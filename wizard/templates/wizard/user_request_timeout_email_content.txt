@@ -1,0 +1,7 @@
+Your {{ request.type|lower }} for SDO/{{ request.data_series }} submitted on {{ request.requested }} took too long to process and was cancelled.
+
+{% if partial %}
+Part of your request is accessible for download at {{ request.ftp_path }} until {{ request.expiration_date }}
+{% endif %}
+
+You can try to re-submit the request or contact the website administrators for help (they received a copy of this email).
