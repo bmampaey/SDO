@@ -5,9 +5,9 @@ import logging
 import uuid
 
 from django.db import models
+from django.contrib.auth.models import User
 from django.forms.models import model_to_dict
 from django.core.validators import RegexValidator
-from django.contrib.auth.models import User
 from django.db.models import signals
 from django.dispatch import receiver
 
@@ -18,7 +18,6 @@ from celery.task.control import revoke as revoke_task
 
 from DRMS.models import DRMSDataSeries, AiaLev1FitsHeader, HmiIc45sFitsHeader, HmiM45sFitsHeader, HmiMharp720SFitsHeader, HmiSharp720SFitsHeader
 from global_config.models import GlobalConfig
-from account.models import UserProfile
 
 
 # TODO: check how to store array of uuid
@@ -510,7 +509,7 @@ class UserRequest(models.Model):
 	data_series = models.ForeignKey(DataSeries, help_text="Name of the data series the data belongs to.", on_delete=models.DO_NOTHING, db_column = "data_series_name")
 	recnums = BigIntegerArrayField(help_text = "List of recnums to export")
 	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the request.", blank=False, null=False)
-	status = models.CharField(help_text = "Request status.", max_length=20, blank=False, null=False, default = "NEW")
+	status = models.CharField(help_text = "Request status.", max_length=100, blank=False, null=False, default = "NEW")
 	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now())
 	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
 	#task_id = models.CharField(help_text = "Task id.", max_length=36, blank=True, null=True, default = None)
@@ -524,11 +523,7 @@ class UserRequest(models.Model):
 	
 	def save(self, *args, **kwargs):
 		if self.expiration_date is None:
-			try:
-				retention_time = timedelta(days=self.user.profile.user_request_retention_time)
-			except UserProfile.DoesNotExist:
-				retention_time = timedelta(days=GlobalConfig.get("default_user_request_retention_time", 60))
-			self.expiration_date = self.requested + retention_time
+			self.expiration_date = self.requested + self.user.retention_time
 		super(UserRequest, self).save(*args, **kwargs)
 	
 	@property

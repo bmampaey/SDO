@@ -24,6 +24,11 @@ celery_beat_schedule = {
 		'schedule': timedelta(minutes=5),
 		'args': ()
 	},
+	'curate_export_data_requests': {
+		'task': 'tasks.user_request_tasks.curate_export_data_requests',
+		'schedule': timedelta(minutes=1),
+		'args': ()
+	}
 	'sanitize_local_data_location': {
 		'task': 'tasks.data_management_tasks.sanitize_local_data_location',
 		'schedule': crontab(hour=0, minute=0),
