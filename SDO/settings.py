@@ -132,6 +132,10 @@ SHORT_DATETIME_FORMAT = DATETIME_FORMAT = 'Y-m-d H:i:s'
 # Important, see https://docs.djangoproject.com/en/dev/topics/http/sessions/#when-sessions-are-saved
 SESSION_SAVE_EVERY_REQUEST = False
 
+# Login Logout
+LOGIN_URL = '/account/login'
+LOGOUT_URL = '/account/logout'
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 

@@ -1,14 +1,41 @@
-<form id="login_form" action="{% url 'account:login' %}" method="post">
-	{% csrf_token %}
-	<div class="section login_section">
-		<div class="section_title">
-			Please specify your email address so that we can notify you when your requests are ready.
-		</div>
-		<div class="section_content">
-			{{ form.as_p }}
-		</div>
+{% load staticfiles %}
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>SDO online</title>
+		
+		<!-- Include jquery libraries and plugins -->
+		<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+		<script src="//code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+
+		<!-- Include jquery plugins and application javascripts -->
+		<script src="{% static 'wizard/js/jquery-ui-timepicker-addon.js' %}" type="text/javascript"></script>
+		<script src="{% static 'wizard/js/jquery.cookie.js' %}" type="text/javascript"></script>
+		<script src="{% static 'wizard/js/sdo_wizard.js' %}" type="text/javascript"></script>
+		
+		<!-- Include stylesheets -->
+		<link rel="stylesheet" href="{% static 'wizard/css/reset.css' %}" type="text/css">
+		<link rel="stylesheet" href="{% static 'wizard/css/jquery-ui-1.10.4.custom.css' %}" type="text/css">
+		<link rel="stylesheet" href="{% static 'wizard/css/sdo_wizard.css' %}" type="text/css">
+	</head>
+<body>
+	<div id="login_box" class="ui-state-highlight dialog_box ui-dialog ui-widget ui-widget-content ui-corner-all ui-front">
+	{% if error %}
+	<p style="color:red;">{{ error }}</p>
+	{% else %}
+	<p>Welcome to the SDO wizard. Please provide an email adress so that we can notify you when your export are ready.</p>
+	{% endif %}
+	<form id="login_form" action="{% url 'account:login' %}" method="post">
+		{% csrf_token %}
+		{{ form.as_p }}
 		<div class="actions">
 			<button type="submit" id="login" title="Log in the application">Login</button>
 		</div>
+	</form>
 	</div>
-</form>
+	</body>
+</html>
+

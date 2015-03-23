@@ -15,7 +15,7 @@ log = get_task_logger("SDO")
 from tasks import app, update_request_status, get_data, get_data_location, delete_data, update_file_metadata
 
 # TODO add link_error to data requests and remove timeout as we will use soft time outs
-@app.task
+@app.task(ignore_result = True)
 def execute_data_download_requests():
 	log.debug("execute_data_download_requests")
 	
@@ -41,7 +41,7 @@ def execute_data_download_requests():
 		log.warning("Could not lock database rows for DataDownloadRequest: %s", why)
 
 
-@app.task
+@app.task(ignore_result = True)
 def execute_data_location_requests():
 	log.debug("execute_data_location_requests")
 	
@@ -66,7 +66,7 @@ def execute_data_location_requests():
 	except OperationalError, why:
 		log.warning("Could not lock database rows for DataLocationRequest: %s", why)
 
-@app.task
+@app.task(ignore_result = True)
 def execute_data_delete_requests():
 	log.debug("execute_data_delete_requests")
 	
@@ -94,7 +94,7 @@ def execute_data_delete_requests():
 
 # TODO check how to get old recnum vs new recnum
 # The old file should be deleted from datalocation and disk
-@app.task
+@app.task(ignore_result = True)
 def execute_metadata_update_requests():
 	log.debug("execute_metadata_update_requests")
 	

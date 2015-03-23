@@ -10,16 +10,15 @@ from PMD.models import DataSeries, DataDownloadRequest
 from PMD.models import ExportDataRequest, ExportMetadataRequest
 
 from wizard.forms import DataSeriesSearchForm
-from account.forms import EmailLoginForm
 from tasks import execute_export_data_request, execute_export_metadata_request
 
 
 # Assert we only have get
 @require_safe
+@login_required
 def index(request):
 	data_series_search_forms = DataSeriesSearchForm.sub_forms()
 	context = {
-		'email_login_form': EmailLoginForm(label_suffix=''),
 		'data_series_search_forms': [data_series_search_forms[name](label_suffix='', auto_id="id_%s_"+name) for name in sorted(data_series_search_forms)],
 	}
 	

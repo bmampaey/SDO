@@ -20,7 +20,7 @@ log = get_task_logger("SDO")
 
 # TODO add soft limit to requests http://celery.readthedocs.org/en/latest/userguide/workers.html#time-limits
 # TODO send mail when too big
-@app.task(bind=True)
+@app.task(bind=True, ignore_result = True)
 def execute_export_data_request(self, request, recnums = [], paginator = None):
 	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
 	#from celery.contrib import rdb; rdb.set_trace()
@@ -88,7 +88,7 @@ def execute_export_data_request(self, request, recnums = [], paginator = None):
 	request.save()
 
 
-@app.task
+@app.task(ignore_result = True)
 def curate_export_data_requests():
 	log.debug("curate_export_data_requests")
 	
@@ -100,7 +100,7 @@ def curate_export_data_requests():
 		update_export_data_request.delay(request_id, request_timeout)
 
 
-@app.task
+@app.task(ignore_result = True)
 def update_export_data_request(request_id, request_timeout = timedelta(days=40)):
 	log.debug("update_export_data_request %s", request_id)
 	
@@ -163,7 +163,7 @@ def update_export_data_request(request_id, request_timeout = timedelta(days=40))
 			request.user.send_message('wizard/user_request_success_email_subject.txt', 'wizard/user_request_success_email_content.txt', kwargs = {"request": request}, by_mail = True, copy_to_admins = True)
 
 
-@app.task(bind=True)
+@app.task(bind=True, ignore_result = True)
 def execute_export_metadata_request(self, request, recnums = [], paginator = None):
 	log.debug("execute_export_data_request request %s paginator %s", request, paginator)
 	
@@ -224,7 +224,7 @@ def execute_export_metadata_request(self, request, recnums = [], paginator = Non
 		request.save()
 		request.user.send_message('wizard/user_request_success_email_subject.txt', 'wizard/user_request_success_email_content.txt', kwargs = {"request": request}, by_mail = True, copy_to_admins = True)
 
-@app.task
+@app.task(ignore_result = True)
 def retry_export_request(request):
 	log.debug("retry_export_request request %s", request)
 	request.revoke()

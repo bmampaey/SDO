@@ -397,6 +397,7 @@ function load_events_handlers()
 	{
 		$(document.body).append('<div id="debug_console" style="width:50em; border: 2px solid red; position: absolute; right: 0; bottom:0;vertical-align: bottom;"></div>');
 	}
+
 	
 	// Attach tabs handler
 	$("#tabs").tabs(
@@ -437,32 +438,6 @@ function load_events_handlers()
 		}
 	);
 	
-	// Transform the login form to do ajax request instead
-	$("form#login_form").submit(function(e){
-		e.preventDefault();
-		var form = $(e.target);
-		log("submit form action: ", form.attr("action"), "query: ", form.serialize());
-		
-$.post(form.attr("action"), form.serialize())
-		.done(function(response){
-			log("login SUCCEEDED response: ", response);
-			// TODO load request and logout button
-			username = response;
-			// Change tab name to username
-			$("li#user_tab>a").html("<span class='ui-icon ui-icon-person visual_indicator'></span>" + username); 
-			// Remove login form
-			$("form#login_form").remove();
-			// Show all hidden content
-			$("div#user > *").show("fast");
-			// Load the request tables
-			load_user_tab_content()
-		})
-		.fail(function(request, status){
-			log("login FAILED response: ", request.responseText);
-			alert_user(request.responseText);
-		});
-	});	
-	
 	// Transform the search form to do ajax request instead
 	$("form.data_search_form").submit(function(e){
 		e.preventDefault();
@@ -491,23 +466,14 @@ $.post(form.attr("action"), form.serialize())
 	$("button.export_data").button({icons: {primary: "ui-icon-extlink"}});
 	$("button.export_metadata").button({icons: {primary: "ui-icon-document"}});
 	$("button.export_cutout").button({icons: {primary: "ui-icon-scissors"}}).hide();
+
 	
-	// When user make an export request, check that he is logged in first
-	$("div.search_result_actions button").click(function(e){
-		log("click handler for button: ", $(e.target).text())
-		if(! username)
-		{
-			e.preventDefault();
-			// If user is not logged in, ask him to do so
-			inform_user("Please, login before making an export request.");
-			
-			// Open the login tab
-			$("#tabs").tabs("option", "active" , -1);
-		}
+	$("a#logout").button({icons: {primary: "ui-icon-eject"}, text:false}).addClass('small_button');
+	
+	$('#refresh_button').button({icons: {primary: "ui-icon-refresh"}}).click(function(){
+		load_user_tab_content();
 	});
-	
-	$("button#login").button({icons: {primary: "ui-icon-key"}, text:true});
-	$("a#logout").button({icons: {primary: "ui-icon-extlink"}, text:true});
+
 	
 	// Transform the search result action form to do ajax request instead
 	$("div.search_result_actions form").submit(function(e){

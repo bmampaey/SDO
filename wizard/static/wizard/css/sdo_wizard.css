@@ -156,5 +156,21 @@ span.visual_indicator {
 	overflow: hidden;
 }
 
+#login_box {
+	text-align: center;
+	height: 10em;
+	max-width: 25em;
+	margin: auto;
+	padding: 1em;
+	position: absolute;
+	top: 0; left: 0; bottom: 0; right: 0;
+}
 
+#login_box form{
+margin: 1em;
+}
+
+#login_box label{
+	display: none;
+}
 

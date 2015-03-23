@@ -1,3 +1,4 @@
 <p>Your {{ request.type|lower }} has been registered and is being processed.</p>
-<p>When it is ready, you will receive an email at {{ request.user.email }} and the data will be accessible for download at <a href="{{ request.ftp_path }}">{{ request.ftp_path }}</a>.</p>
-<p>You can review and manage all your requests under the tab {{ request.user.username }}.</p>
+<p>When it is ready, you will receive an email at <i>{{ request.user.email }}</i> and the data will be accessible for download via <a href="{{ request.ftp_path }}">FTP</a>.</p>
+<p>If you are a ROB user, the data will also be available on iblis under /data/SDO/exports/{{ request.user.username }}.
+<p>You can review and manage all your requests under your user tab ({{ request.user.username }}).</p>
