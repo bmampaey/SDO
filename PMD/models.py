@@ -188,7 +188,7 @@ class PMDDataLocation(models.Model):
 
 class LocalDataLocation(PMDDataLocation):
 	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the data from the system.", blank=False, null=False)
-	last_request_date = models.DateTimeField(help_text = "Date at which the data was last requested.", blank=False, null=False, default = datetime.now())
+	last_request_date = models.DateTimeField(help_text = "Date at which the data was last requested.", blank=False, null=False, default = datetime.now)
 	
 	class Meta(PMDDataLocation.Meta):
 		db_table = "data_location"
@@ -510,7 +510,7 @@ class UserRequest(models.Model):
 	recnums = BigIntegerArrayField(help_text = "List of recnums to export")
 	expiration_date = models.DateTimeField(help_text = "Date after which it is ok to delete the request.", blank=False, null=False)
 	status = models.CharField(help_text = "Request status.", max_length=100, blank=False, null=False, default = "NEW")
-	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now())
+	requested = models.DateTimeField(help_text = "Date of request.", null=False, default = datetime.now)
 	updated = models.DateTimeField(help_text = "Date of last status update.", null=False, auto_now = True)
 	#task_id = models.CharField(help_text = "Task id.", max_length=36, blank=True, null=True, default = None)
 	#task_ids = ArrayField(dbtype="uuid", type_cast = lambda x: uuid.UUID(x))
