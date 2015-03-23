@@ -4,6 +4,7 @@ __pycache__/
 
 # gedit backup files
 *~
+._*
 # data files 
 *.fits
 *.csv
@@ -61,3 +62,7 @@ docs/_build/
 
 # Secret files
 secret_key.py
+
+# OSX files
+._.DS_Store
+.DS_Store
