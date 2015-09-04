@@ -31,7 +31,7 @@ celery_beat_schedule = {
 	}
 	'sanitize_local_data_location': {
 		'task': 'tasks.data_management_tasks.sanitize_local_data_location',
-		'schedule': crontab(hour=0, minute=0),
+		'schedule': crontab(hour=18, minute=0, day_of_week='saturday'),
 		'args': ()
 	},
 	'create_AIA_HMI_1H_synoptic_tree': {

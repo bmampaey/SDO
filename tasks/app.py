@@ -6,20 +6,24 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
 from celery import Celery
 from django.conf import settings
 from djcelery.schedulers import DatabaseScheduler
+from tasks_schedule import celery_beat_schedule
 
 app = Celery('app', broker='amqp://admin:admin@localhost:5672//', backend='redis://localhost:6379/0')
 
 # Optional configuration, see the application user guide.
 app.conf.update(
 	#CELERY_ACCEPT_CONTENT = ['json'],
-	CELERY_TASK_RESULT_EXPIRES=600,
+	CELERY_TASK_RESULT_EXPIRES=259200,
 	CELERY_TRACK_STARTED = True,
 	CELERY_ACKS_LATE = True,
 	 # To be removed if we set a rate limit on some tasks
 	CELERY_DISABLE_RATE_LIMITS = True,
 	CELERY_TIMEZONE = 'Europe/Brussels',
 	# Beat tasks are configured through the admin interface
-	CELERYBEAT_SCHEDULER = DatabaseScheduler,
+	# But it doesn't work for now, we have to wait fo an update of djcelery
+	# CELERYBEAT_SCHEDULER = DatabaseScheduler,
+	# In the mean time we use the regular scheduler
+	CELERYBEAT_SCHEDULE = celery_beat_schedule,
 	# Send a mail each time a task fail
 	CELERY_SEND_TASK_ERROR_EMAILS = True,
 	# Emails settings are overriden by Django email settings.
