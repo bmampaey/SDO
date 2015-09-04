@@ -43,6 +43,12 @@ AFTER UPDATE ON pmd.hmi_m_45s
 FOR EACH ROW
 EXECUTE PROCEDURE pmd.update_local_data('hmi_m_45s');
 
+DROP TRIGGER IF EXISTS trigger_update_local_data ON pmd.hmi_mharp_720s;
+CREATE TRIGGER trigger_update_local_data
+AFTER UPDATE ON pmd.hmi_mharp_720s
+FOR EACH ROW
+EXECUTE PROCEDURE pmd.update_local_data('hmi_mharp_720s');
+
 -- Must be set for each record table
 -- Set as an after insert or update trigger
 -- Take 1 argument, the data_series_name
@@ -88,3 +94,8 @@ AFTER INSERT OR UPDATE ON pmd.hmi_m_45s
 FOR EACH ROW
 EXECUTE PROCEDURE pmd.update_remote_location('hmi_m_45s');
 
+DROP TRIGGER IF EXISTS trigger_update_remote_location ON pmd.hmi_mharp_720s;
+CREATE TRIGGER trigger_update_remote_location
+AFTER INSERT OR UPDATE ON pmd.hmi_mharp_720s
+FOR EACH ROW
+EXECUTE PROCEDURE pmd.update_remote_location('hmi_mharp_720s');
