@@ -6,7 +6,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "SDO.settings")
 from celery import Celery
 from django.conf import settings
 from djcelery.schedulers import DatabaseScheduler
-from tasks_schedule import celery_beat_schedule
+from tasks.tasks_schedule import celery_beat_schedule
 
 app = Celery('app', broker='amqp://admin:admin@localhost:5672//', backend='redis://localhost:6379/0')
 
