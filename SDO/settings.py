@@ -99,9 +99,10 @@ WSGI_APPLICATION = 'SDO.wsgi.application'
 DATABASES = {
 	'default': {
 		'ENGINE': 'django.db.backends.postgresql_psycopg2',
-		'NAME': 'jsoc_drms',
-		'USER': 'production',
-		'HOST': 'drmsdb.sdodb.oma.be',
+		'NAME': 'sdo',
+		'USER': 'sdo',
+		'HOST': 'sdobase.oma.be',
+		'PASSWORD': 'LivingWithAStar',
 		'PORT': '5432'
 	}
 }
