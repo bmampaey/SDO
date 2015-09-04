@@ -26,7 +26,7 @@
 	{% if error %}
 	<p style="color:red;">{{ error }}</p>
 	{% else %}
-	<p>Welcome to the SDO wizard. Please provide an email adress so that we can notify you when your export are ready.</p>
+	<p>Welcome to the SDO wizard. Please provide an email address so that we can notify you when your export are ready.</p>
 	{% endif %}
 	<form id="login_form" action="{% url 'account:login' %}" method="post">
 		{% csrf_token %}

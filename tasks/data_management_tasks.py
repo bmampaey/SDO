@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import os, errno
 from datetime import datetime, timedelta
 
-from django.db import transaction
+from django.db import transaction, OperationalError
 from celery import group, chord
 from celery.utils.log import get_task_logger
 

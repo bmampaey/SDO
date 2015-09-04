@@ -15,7 +15,7 @@ class ExportDataRequestAdmin(admin.ModelAdmin):
 	
 	def get_readonly_fields(self, request, obj=None):
 		if obj:
-			return self.readonly_fields + ('data_series', 'requested', 'recnums', 'task_ids')
+			return self.readonly_fields + ('data_series', 'requested', 'updated', 'recnums', 'task_ids')
 		return self.readonly_fields
 
 class ExportMetadataRequestAdmin(admin.ModelAdmin):
@@ -23,7 +23,7 @@ class ExportMetadataRequestAdmin(admin.ModelAdmin):
 	
 	def get_readonly_fields(self, request, obj=None):
 		if obj:
-			return self.readonly_fields + ('data_series', 'requested', 'recnums', 'task_ids')
+			return self.readonly_fields + ('data_series', 'requested', 'updated', 'recnums', 'task_ids')
 		return self.readonly_fields
 
 class DataRequestAdmin(admin.ModelAdmin):
@@ -31,7 +31,7 @@ class DataRequestAdmin(admin.ModelAdmin):
 	
 	def get_readonly_fields(self, request, obj=None):
 		if obj:
-			return self.readonly_fields + ('requested')
+			return self.readonly_fields + ('requested', )
 		return self.readonly_fields
 
 

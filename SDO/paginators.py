@@ -26,20 +26,23 @@ class EstimatedCountPaginator(DjangoPaginator):
 	
 		# Remove limit and offset from the query, and extract sql and params.
 		query = self.object_list.query
-		query.low_mark = None
+		query.low_mark = 0
 		query.high_mark = None
-		query, params = self.object_list.query.sql_with_params()
+		query_str, params = query.sql_with_params()
 	
 		# Fetch the estimated rowcount from EXPLAIN json output.
-		query = 'explain (format json) %s' % query
-		cursor.execute(query, params)
-		explain = cursor.fetchone()[0]
+		query_str = 'explain (format json) ' + query_str
+		try:
+			cursor.execute(query_str, params)
+			explain = cursor.fetchone()[0]
+		except Exception, why:
+			return self._get_count()
 	
 		# Older psycopg2 versions do not convert json automatically.
 		if isinstance(explain, basestring):
 			print "You should upgrade psycopg2"
 			explain = json.loads(explain)
-		print pprint.pformat(explain, depth=6)
+		# print pprint.pformat(explain, depth=6)
 		return explain[0]['Plan']['Plan Rows']
 	
 	@property
@@ -95,15 +98,18 @@ class TastypieEstimatedCountPaginator(TastypiePaginator):
 		query = self.objects.all().query
 		
 		# Remove limit and offset from the query, and extract sql and params.
-		query.low_mark = None
+		query.low_mark = 0
 		query.high_mark = None
-		query, params = self.objects.query.sql_with_params()
+		query_str, params = self.objects.query.sql_with_params()
 		
 		# Fetch the estimated rowcount from EXPLAIN json output.
-		query = 'explain (format json) %s' % query
-		print query
-		cursor.execute(query, params)
-		explain = cursor.fetchone()[0]
+		query_str = 'explain (format json) ' + query_str
+		try:
+			cursor.execute(query_str, params)
+			explain = cursor.fetchone()[0]
+		except Exception, why:
+			return self._get_count()
+		
 		# Older psycopg2 versions do not convert json automatically.
 		if isinstance(explain, basestring):
 			explain = json.loads(explain)
