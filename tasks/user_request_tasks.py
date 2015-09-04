@@ -80,11 +80,11 @@ def execute_export_data_request(self, request, recnums = [], paginator = None):
 				async_result = get_data.apply_async((data_download_request,), link = create_link.s(link_path, soft = False, force = True))
 				# Save the task id into the request to allow monitoring and easy cancel
 				request.task_ids.append(async_result.id)
-				request.save()
+		request.save()
 	
 	# Remove self task id from the request
 	request.task_ids = request.task_ids[1:]
-	request.status = "PROCESSING (%s/%s remaining)" % (len(request.recnums), len(request.recnums))
+	request.status = "PROCESSING (%s/%s remaining)" % (len(request.task_ids), len(request.recnums))
 	request.save()
 
 
@@ -92,7 +92,7 @@ def execute_export_data_request(self, request, recnums = [], paginator = None):
 def curate_export_data_requests():
 	log.debug("curate_export_data_requests")
 	
-	request_timeout = GlobalConfig.get("export_data_request_timeout", timedelta(days=40))
+	request_timeout = GlobalConfig.get("export_data_request_timeout", timedelta(days=2))
 	
 	# Update each export data request
 	# We use the id and not the request itself because it is necessary to lock the request before updating it
@@ -101,66 +101,66 @@ def curate_export_data_requests():
 
 
 @app.task(ignore_result = True)
-def update_export_data_request(request_id, request_timeout = timedelta(days=40)):
+def update_export_data_request(request_id, request_timeout = timedelta(days=2)):
 	log.debug("update_export_data_request %s", request_id)
 	
-	#from celery.contrib import rdb; rdb.set_trace()
-	try:
+	with transaction.atomic():
+		#from celery.contrib import rdb; rdb.set_trace()
 		# Lock the request to avoid concurrent update (the lock will be released at the first save)
-		with transaction.atomic():
-			try:
-				request = ExportDataRequest.objects.select_for_update(nowait=True).get(id=request_id)
-			except ExportDataRequest.DoesNotExist, why:
-				log.warning("Request %s was not found, cannot update", request_id)
-				return
-	
-	except OperationalError, why:
-		log.warning("Could not lock database row for ExportDataRequest %s: %s", request_id, why)
-	
-	else:
-		# Sort the request tasks by status
-		done_tasks, failed_tasks, pending_tasks = [], [], []
-		for task_id in request.task_ids:
-			result = get_data.AsyncResult(task_id)
-			if result.status == "SUCCESS":
-				# The task's children must also have a status of success 
-				if all(child.status == "SUCCESS" for child in result.children):
-					done_tasks.append(task_id)
-				elif any(child.status == "FAILURE" for child in result.children):
-					failed_tasks.append(task_id)
-				else:
-					pending_tasks.append(task_id)
-			elif result.status in ["PENDING", "STARTED"]:
-				pending_tasks.append(task_id)
-			else:
-				log.error("Task %s has a status of %s", task_id, result.status)
-				failed_tasks.append(task_id)
+		try:
+			request = ExportDataRequest.objects.select_for_update(nowait=True).get(id=request_id)
 		
-		# Some tasks are still pending
-		if pending_tasks:
-			request.task_ids = pending_tasks + failed_tasks
-			# If the request is running for too long we stop it, we update the status and send an email
-			if datetime.now() - request.updated > request_timeout:
-				request.status = "TIMEOUT (%s/%s missing)" % (len(request.task_ids), len(request.recnums))
-				request.save()
-				request.revoke()
-				request.user.send_message('wizard/user_request_timeout_email_subject.txt', 'wizard/user_request_timeout_email_content.txt', kwargs = {"request": request, "partial": len(request.task_ids) < len(request.recnums)}, by_mail = True, copy_to_admins = True)
-			else:
-				request.status = "PROCESSING (%s/%s remaining)" % (len(request.task_ids), len(request.recnums))
-				request.save()
-		# We only have failed tasks left, we update the status and send an email
-		elif failed_tasks:
-			request.task_ids = failed_tasks
-			request.status = "FAILED (%s/%s missing)" % (len(request.task_ids), len(request.recnums))
-			request.save()
-			errors = [create_link.AsyncResult(task_id).result for task_id in failed_tasks]
-			request.user.send_message('wizard/user_request_failure_email_subject.txt', 'wizard/user_request_failure_email_content.txt', kwargs = {"request": request, "partial": len(request.task_ids) < len(request.recnums), "errors":  errors}, by_mail = True, copy_to_admins = True)
-		# The tasks are all finished, we update the status and send an email
+		except OperationalError, why:
+			log.warning("Could not lock database row for ExportDataRequest %s: %s", request_id, why)
+		
+		except ExportDataRequest.DoesNotExist, why:
+			log.warning("Request %s was not found, cannot update", request_id)
+			return
+		
 		else:
-			request.task_ids = []
-			request.status = "READY"
-			request.save()
-			request.user.send_message('wizard/user_request_success_email_subject.txt', 'wizard/user_request_success_email_content.txt', kwargs = {"request": request}, by_mail = True, copy_to_admins = True)
+			# Sort the request tasks by status
+			done_tasks, failed_tasks, pending_tasks = [], [], []
+			for task_id in request.task_ids:
+				result = get_data.AsyncResult(task_id)
+				if result.status == "SUCCESS":
+					# The task's children must also have a status of success 
+					if all(child.status == "SUCCESS" for child in result.children):
+						done_tasks.append(task_id)
+					elif any(child.status == "FAILURE" for child in result.children):
+						failed_tasks.append(task_id)
+					else:
+						pending_tasks.append(task_id)
+				elif result.status in ["PENDING", "STARTED"]:
+					pending_tasks.append(task_id)
+				else:
+					log.error("Task %s has a status of %s", task_id, result.status)
+					failed_tasks.append(task_id)
+	
+			# Some tasks are still pending
+			if pending_tasks:
+				request.task_ids = pending_tasks + failed_tasks
+				# If the request is running for too long we stop it, we update the status and send an email
+				if datetime.now() - request.requested > request_timeout:
+					request.status = "TIMEOUT (%s/%s missing)" % (len(request.task_ids), len(request.recnums))
+					request.save()
+					request.revoke()
+					request.user.send_message('wizard/user_request_timeout_email_subject.txt', 'wizard/user_request_timeout_email_content.txt', kwargs = {"request": request, "partial": len(request.task_ids) < len(request.recnums)}, by_mail = True, copy_to_admins = True)
+				else:
+					request.status = "PROCESSING (%s/%s remaining)" % (len(request.task_ids), len(request.recnums))
+					request.save()
+			# We only have failed tasks left, we update the status and send an email
+			elif failed_tasks:
+				request.task_ids = failed_tasks
+				request.status = "FAILED (%s/%s missing)" % (len(request.task_ids), len(request.recnums))
+				request.save()
+				errors = [create_link.AsyncResult(task_id).result for task_id in failed_tasks]
+				request.user.send_message('wizard/user_request_failure_email_subject.txt', 'wizard/user_request_failure_email_content.txt', kwargs = {"request": request, "partial": len(request.task_ids) < len(request.recnums), "errors":  errors}, by_mail = True, copy_to_admins = True)
+			# The tasks are all finished, we update the status and send an email
+			else:
+				request.task_ids = []
+				request.status = "READY"
+				request.save()
+				request.user.send_message('wizard/user_request_success_email_subject.txt', 'wizard/user_request_success_email_content.txt', kwargs = {"request": request}, by_mail = True, copy_to_admins = True)
 
 
 @app.task(bind=True, ignore_result = True)
