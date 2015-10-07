@@ -8,6 +8,7 @@ urlpatterns = patterns('',
     url(r'^account/', include('account.urls', namespace="account")),
     url(r'^PMD/', include('PMD.urls', namespace="PMD")),
     url(r'^wizard/', include('wizard.urls', namespace="wizard")),
+    url(r'^vso/', include('vso.urls', namespace="vso")),
 )
 
 # Only when debugging
