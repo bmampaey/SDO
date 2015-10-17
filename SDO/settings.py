@@ -8,7 +8,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.6/ref/settings/
 """
 import os
-from django.core.exceptions import SuspiciousOperation
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -102,7 +101,8 @@ DATABASES = {
 		'NAME': 'sdo',
 		'USER': 'sdo',
 		'HOST': 'sdobase.oma.be',
-		'PASSWORD': 'LivingWithAStar',
+		# Do not put password here, instead write it in the .pgpass file of the user running django (production)
+		# 'PASSWORD': '*****',
 		'PORT': '5432'
 	}
 }

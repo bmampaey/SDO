@@ -103,7 +103,7 @@ def curate_export_data_requests():
 @app.task(ignore_result = True)
 def update_export_data_request(request_id, request_timeout = timedelta(days=2)):
 	log.debug("update_export_data_request %s", request_id)
-	
+	#from celery.contrib import rdb; rdb.set_trace()
 	with transaction.atomic():
 		#from celery.contrib import rdb; rdb.set_trace()
 		# Lock the request to avoid concurrent update (the lock will be released at the first save)
