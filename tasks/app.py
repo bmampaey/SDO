@@ -18,6 +18,7 @@ app.conf.update(
 	CELERY_ACKS_LATE = True,
 	# Avoid memory leak build-up
 	CELERYD_MAX_TASKS_PER_CHILD = 10,
+	CELERYD_PREFETCH_MULTIPLIER = 1,
 	 # To be removed if we set a rate limit on some tasks
 	CELERY_DISABLE_RATE_LIMITS = True,
 	CELERY_TIMEZONE = 'Europe/Brussels',
