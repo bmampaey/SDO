@@ -12,7 +12,7 @@ from PMD.models import DataDownloadRequest, DataLocationRequest, DataDeleteReque
 
 log = get_task_logger("SDO")
 
-from tasks import app, update_request_status, get_data, get_data_location, delete_data, update_file_metadata
+from tasks import app, update_request_status, get_data, get_data_location, delete_data, update_file_metadata, check_file_exists
 
 # TODO add link_error to data requests and remove timeout as we will use soft time outs
 @app.task(ignore_result = True)
