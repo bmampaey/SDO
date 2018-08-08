@@ -184,6 +184,7 @@ class PMDDataLocation(models.Model):
 		if not created:
 			data_location.path = path
 			data_location.save()
+		return data_location
 
 
 class LocalDataLocation(PMDDataLocation):
@@ -239,12 +240,12 @@ class LocalDataLocation(PMDDataLocation):
 	
 	@classmethod
 	def save_path(cls, request, path):
-		# For local data location we set the expiration date
-		super(LocalDataLocation, cls).save_path(request, path)
-		if request.expiration_date:
-			data_location = cls.get_location(request)
+		data_location = super(LocalDataLocation, cls).save_path(request, path)
+		# If the request has an expiration date bigger than the data location's expiration date, we update it
+		if getattr(request, 'expiration_date', None) is not None and request.expiration_date > data_location.expiration_date :
 			data_location.expiration_date = request.expiration_date
 			data_location.save()
+		return data_location
 	
 	@classmethod
 	def delete_location(cls, request):
@@ -290,6 +291,7 @@ class DrmsDataLocation(models.Model):
 		if not created:
 			data_location.path = path
 			data_location.save()
+		return data_location
 
 class ROBDataLocation(DrmsDataLocation):
 	
@@ -566,7 +568,7 @@ class ExportDataRequest(UserRequest):
 		else:
 			size = self.data_series.record.average_file_size * len(self.recnums)
 		if human_readable:
-			for suffix in ["B", "KB", "MB", "GB", "TB"]: 
+			for suffix in ["B", "KB", "MB", "GB", "TB"]:
 				if size >= 1024:
 					size/=1024
 				else:

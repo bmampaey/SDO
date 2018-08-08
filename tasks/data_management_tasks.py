@@ -127,15 +127,18 @@ def update_file_metadata(request):
 	log.debug("update_file_metadata %s", request)
 	"""Locate the file, get the new header values from database and update the header of the file"""
 	# Find the local file path
-	file_path = get_file_path(request, local_data_site = True)
-	
-	# Get the new meta data
-	header_values = request.data_series.get_header_values(request.recnum)
-	header_units = request.data_series.get_header_units()
-	header_comments = request.data_series.get_header_comments()
-	
-	# Update the fits header
-	update_fits_header(file_path, header_values, header_comments, header_units, hdu = request.data_series.hdu, log = log)
+	try:
+		file_path = get_file_path(request, local_data_site = True)
+	except LocalDataLocation.DoesNotExist, why:
+		log.error("Error while updating meta-data for request %s : %s", request, why)
+	else:
+		# Get the new meta data
+		header_values = request.data_series.get_header_values(request.recnum)
+		header_units = request.data_series.get_header_units()
+		header_comments = request.data_series.get_header_comments()
+		
+		# Update the fits header
+		update_fits_header(file_path, header_values, header_comments, header_units, hdu = request.data_series.hdu, log = log)
 
 # Delete Data - Execute a DataDeleteRequest
 @app.task
@@ -318,7 +321,7 @@ def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_
 # Django tasks
 @app.task
 def get_preview(request):
-	# Check if the previews already exists 
+	# Check if the previews already exists
 	cache_path = GlobalConfig.get_or_fail("preview_cache_path")
 	image_path = os.path.splitext(os.path.join(cache_path, request.data_series.name, "%s.%s" % (request.recnum, request.segment)))[0] + ".png"
 	if os.path.exists(image_path):

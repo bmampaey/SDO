@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import absolute_import
 from datetime import datetime, timedelta
+import shutil
 
 from django.db import transaction, OperationalError
 from celery import group, chord
@@ -122,7 +123,7 @@ def execute_metadata_update_requests():
 								current_data_location.delete()
 								update_request_status(request, "DONE")
 							else:
-								# Because meta-data is written in theile, we need to make a copy of the file to break hard links and give it a new name
+								# Because meta-data is written in the file, we need to make a copy of the file to break hard links and give it a new name
 								new_local_file_path = LocalDataLocation.create_location(request)
 								try:
 									shutil.copyfile(current_data_location.path, new_local_file_path)
