@@ -61,7 +61,10 @@ def execute_export_data_request(self, request, recnums = [], paginator = None):
 	log.debug("Request %s, found %s records to download", request, len(request.recnums))
 	
 	# To avoid user filling up our system, we check that the request is reasonable
-	if request.estimated_size() > request.user.remaining_disk_quota:
+	request_size = request.estimated_size() 
+	user_remaining_disk_space = request.user.remaining_disk_quota + request_size
+	log.debug("Request estimated size %s, User remaining disk quota %s", request_size, user_remaining_disk_space)
+	if request_size > user_remaining_disk_space:
 		update_request_status(request, "TOO LARGE")
 		request.user.send_message('wizard/user_request_toolarge_email_subject.txt', 'wizard/user_request_toolarge_email_content.txt', kwargs = {"request": request}, by_mail = True, copy_to_admins = True)
 	
