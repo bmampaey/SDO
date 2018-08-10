@@ -138,7 +138,7 @@ def execute_metadata_update_requests():
 				# If the request is running for too long there could be a problem
 				elif request.status == "RUNNING" and request.updated + request_timeout < datetime.now():
 					update_request_status(request, "TIMEOUT")
-					app.mail_admins("Request timeout", "The metadata_update request %s has been running since %s and passed it's timeout %s", request.id, request.updated, request_timeout)
+					app.mail_admins("Request timeout", "The metadata_update request %s has been running since %s and passed it's timeout %s" % (request.id, request.updated, request_timeout))
 			
 				elif request.status == "DONE":
 					request.delete()
