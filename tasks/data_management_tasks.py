@@ -4,6 +4,7 @@ import os, errno
 from datetime import datetime, timedelta
 
 from django.db import transaction, OperationalError
+from django.db.models import Q
 from celery import group, chord
 from celery.utils.log import get_task_logger
 
@@ -246,7 +247,7 @@ def delete_file(file_path):
 
 
 @app.task
-def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_folder = None, frequency = None, soft_link = None):
+def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_folder = None, frequency = None, max_wait = None, soft_link = None):
 	""" Creates a synoptic directory tree of SDO data, takes as argument a prefix for the following Global Configuration variables:
 	{prefix}_start_date: date at which to start the synoptic tree
 	{prefix}_root_folder: The folder where the tree will be created
@@ -274,6 +275,9 @@ def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_
 	if frequency is None:
 		frequency = GlobalConfig.get_or_fail(config + "_frequency")
 	
+	if max_wait is None:
+		max_wait = GlobalConfig.get(config + "_max_wait", timedelta(days=15))
+	
 	if soft_link is None:
 		soft_link = GlobalConfig.get(config + "_soft_link", False)
 	
@@ -285,23 +289,31 @@ def create_AIA_HMI_synoptic_tree(config, start_date = None, end_date=None, root_
 	for wavelength in [94, 131, 171, 193, 211, 304, 335, 1600, 1700, 4500]:
 		data_series_desc["aia.lev1/%04d" % wavelength] =  aia_lev1.record.objects.filter(wavelnth = wavelength, quality = 0)
 	
-	# We add hmi m45s and ic45s
+	# We add hmi m45s
 	hmi_m_45s = DataSeries.objects.get(drms_series__name="hmi.m_45s")
-	data_series_desc["hmi.m_45s"] = hmi_m_45s.record.objects.filter(quality = 0)
-	hmi_ic_45s = DataSeries.objects.get(drms_series__name="hmi.ic_45s")
-	data_series_desc["hmi.ic_45s"] = hmi_ic_45s.record.objects.filter(quality = 0)
+	# Temporary fix for the HMI2018AugustAnomaly, allow the 0x80 bit to be set
+	data_series_desc["hmi.m_45s"] = hmi_m_45s.record.objects.filter(Q(quality = 0) | Q(quality = 128))
 	
+	# We add hmi ic45s
+	hmi_ic_45s = DataSeries.objects.get(drms_series__name="hmi.ic_45s")
+	# Temporary fix for the HMI2018AugustAnomaly, allow the 0x80 bit to be set
+	data_series_desc["hmi.ic_45s"] = hmi_ic_45s.record.objects.filter(Q(quality = 0) | Q(quality = 128))
 	
 	# Get the record sets
 	log.debug("Getting records from %s to %s", start_date, end_date)
 	record_sets = create_record_sets(data_series_desc, frequency, start_date, end_date)
 	
-	# Remove the last record sets that are incomplete
-	times = sorted(record_sets.keys())
-	while times and len(record_sets[times[-1]]) < len(data_series_desc):
-		log.debug("Record set for time %s is incomplete %s/%s, delaying until next run.", times[-1].isoformat(), len(record_sets[times[-1]]), len(data_series_desc))
-		del record_sets[times[-1]]
-		times.pop()
+	# Remove the last record sets that are incomplete, unless we have exceeded max_wait
+	min_time = datetime.now() - max_wait
+	data_series = set(data_series_desc.keys())
+	for time in sorted(record_sets.keys(), reverse = True):
+		missings_data_series = data_series - set(record_sets[time].keys())
+		if missings_data_series:
+			if time > min_time:
+				log.info("Record set for time %s is incomplete, missing %s. Delaying until next run.", time.isoformat(), ', '.join(missings_data_series))
+				del record_sets[time]
+			else:
+				log.warning("Record set for time %s is incomplete, missing %s. But max wait of %s has been exceeded, creating set without missing.", time.isoformat(), ', '.join(missings_data_series), max_wait)
 	
 	# We get the files and make the links
 	for time, record_set in record_sets.iteritems():
